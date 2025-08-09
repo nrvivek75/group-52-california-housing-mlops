@@ -1,18 +1,23 @@
 # Python
 __pycache__/
 *.py[cod]
-*.class
+*$py.class
 *.so
 *.egg-info/
 dist/
 build/
 .env
 
-# Data files (we'll track with DVC)
-data/raw/*
-data/processed/*
-!data/raw/.gitkeep
-!data/processed/.gitkeep
+# Specific data files (not patterns that catch .dvc files)
+data/raw/california_housing.csv
+data/processed/*.npy
+data/processed/*.pkl
+data/processed/X_train.npy
+data/processed/X_test.npy
+data/processed/y_train.npy
+data/processed/y_test.npy
+data/processed/feature_names.csv
+data/processed/preprocessor.pkl
 
 # Models
 models/*.pkl
@@ -32,3 +37,11 @@ logs/*.log
 # OS
 .DS_Store
 Thumbs.db
+
+# MLflow
+mlruns/*/
+!mlruns/0/
+
+# But allow .dvc files!
+!*.dvc
+!.dvc/

@@ -1,0 +1,14 @@
+features
+MedInc
+HouseAge
+AveRooms
+AveBedrms
+Population
+AveOccup
+Latitude
+Longitude
+rooms_per_household
+bedrooms_per_room
+population_per_household
+Population_log
+AveOccup_log

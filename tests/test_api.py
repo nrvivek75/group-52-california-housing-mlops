@@ -199,8 +199,11 @@ class TestAPIEndpoints:
         """Test metrics endpoint"""
         response = client.get("/metrics")
         assert response.status_code == 200
-        # Should return Prometheus metrics
-        assert "http_requests_total" in response.text
+        # Should return Prometheus metrics - check for our custom metrics
+        assert "model_predictions_total" in response.text
+        assert "model_prediction_duration_seconds" in response.text
+        # Also check for standard FastAPI metrics
+        assert "http_request_duration_seconds" in response.text
 
     def test_logs_endpoint(self, setup_test_db):
         """Test logs endpoint"""

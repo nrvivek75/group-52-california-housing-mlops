@@ -10,7 +10,7 @@ import time
 import os
 from datetime import datetime
 from typing import Dict, List, Optional
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 import uvicorn
 from prometheus_fastapi_instrumentator import Instrumentator, metrics
 from contextlib import asynccontextmanager
@@ -172,15 +172,17 @@ class HousingData(BaseModel):
         ..., gt=0, le=15.0, description="Median income between 0 and 15"
     )
 
-    @validator("total_bedrooms")
-    def validate_bedrooms(cls, v, values):
-        if "total_rooms" in values and v > values["total_rooms"]:
+    @field_validator("total_bedrooms")
+    @classmethod
+    def validate_bedrooms(cls, v, info):
+        if hasattr(info, 'data') and 'total_rooms' in info.data and v > info.data['total_rooms']:
             raise ValueError("Total bedrooms cannot exceed total rooms")
         return v
 
-    @validator("households")
-    def validate_households(cls, v, values):
-        if "population" in values and v > values["population"]:
+    @field_validator("households")
+    @classmethod
+    def validate_households(cls, v, info):
+        if hasattr(info, 'data') and 'population' in info.data and v > info.data['population']:
             raise ValueError("Households cannot exceed population")
         return v
 

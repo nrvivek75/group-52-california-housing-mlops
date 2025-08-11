@@ -51,10 +51,32 @@ class ModelRetrainingSystem:
         Returns: (needs_retraining, performance_metrics)
         """
         try:
-            # Load current model
-            current_model = mlflow.pyfunc.load_model(
-                f"models:/{self.model_name}/Production"
-            )
+            # Try to load current model from local files first
+            current_model = None
+
+            # Look for local model files
+            if os.path.exists("models/best_model.pkl"):
+                try:
+                    import joblib
+
+                    current_model = joblib.load("models/best_model.pkl")
+                    logger.info("Loaded model from local models/best_model.pkl")
+                except Exception as e:
+                    logger.warning(f"Failed to load local model: {e}")
+
+            # Fallback to MLflow if local model not available
+            if current_model is None:
+                try:
+                    current_model = mlflow.pyfunc.load_model(
+                        f"models:/{self.model_name}/Production"
+                    )
+                    logger.info("Loaded model from MLflow Model Registry")
+                except Exception as e:
+                    logger.warning(f"Failed to load from MLflow: {e}")
+
+            if current_model is None:
+                logger.error("No model available for performance check")
+                return True, {"error": "No model available"}
 
             # Load test data
             if not os.path.exists(self.data_path):
@@ -65,18 +87,18 @@ class ModelRetrainingSystem:
 
             # Prepare features and target
             feature_cols = [
-                "longitude",
-                "latitude",
-                "housing_median_age",
-                "total_rooms",
-                "total_bedrooms",
-                "population",
-                "households",
-                "median_income",
+                "Longitude",
+                "Latitude",
+                "HouseAge",
+                "AveRooms",
+                "AveBedrms",
+                "Population",
+                "AveOccup",
+                "MedInc",
             ]
 
-            X = data[feature_cols]
-            y = data["median_house_value"] / 100000  # Convert to 100k units
+            X = data[feature_cols].values
+            y = data["MedHouseVal"].values
 
             # Split data
             X_train, X_test, y_train, y_test = train_test_split(
@@ -87,18 +109,20 @@ class ModelRetrainingSystem:
             y_pred = current_model.predict(X_test)
 
             # Calculate metrics
-            rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-            r2 = r2_score(y_test, y_pred)
+            rmse = float(np.sqrt(mean_squared_error(y_test, y_pred)))
+            r2 = float(r2_score(y_test, y_pred))
 
             metrics = {
                 "rmse": rmse,
                 "r2": r2,
-                "test_samples": len(X_test),
+                "test_samples": int(len(X_test)),
                 "timestamp": datetime.now().isoformat(),
             }
 
             # Check thresholds
-            needs_retraining = rmse > self.threshold_rmse or r2 < self.threshold_r2
+            needs_retraining = bool(
+                rmse > self.threshold_rmse or r2 < self.threshold_r2
+            )
 
             logger.info(f"Performance check - RMSE: {rmse:.4f}, R2: {r2:.4f}")
             logger.info(f"Needs retraining: {needs_retraining}")
@@ -107,7 +131,7 @@ class ModelRetrainingSystem:
 
         except Exception as e:
             logger.error(f"Error checking model performance: {e}")
-            return True, {}  # Assume retraining needed if check fails
+            return True, {"error": str(e)}  # Assume retraining needed if check fails
 
     def check_data_drift(self, window_days: int = 30) -> Tuple[bool, Dict]:
         """
@@ -127,9 +151,9 @@ class ModelRetrainingSystem:
 
             # Calculate basic statistics
             drift_metrics = {
-                "recent_samples": len(recent_data),
-                "feature_means": recent_data.mean().to_dict(),
-                "feature_stds": recent_data.std().to_dict(),
+                "recent_samples": int(len(recent_data)),
+                "feature_means": {k: float(v) for k, v in recent_data.mean().items()},
+                "feature_stds": {k: float(v) for k, v in recent_data.std().items()},
                 "timestamp": datetime.now().isoformat(),
             }
 
@@ -186,18 +210,18 @@ class ModelRetrainingSystem:
                 # Load and prepare data
                 data = pd.read_csv(self.data_path)
                 feature_cols = [
-                    "longitude",
-                    "latitude",
-                    "housing_median_age",
-                    "total_rooms",
-                    "total_bedrooms",
-                    "population",
-                    "households",
-                    "median_income",
+                    "Longitude",
+                    "Latitude",
+                    "HouseAge",
+                    "AveRooms",
+                    "AveBedrms",
+                    "Population",
+                    "AveOccup",
+                    "MedInc",
                 ]
 
-                X = data[feature_cols]
-                y = data["median_house_value"] / 100000
+                X = data[feature_cols].values
+                y = data["MedHouseVal"].values
 
                 # Split data
                 X_train, X_test, y_train, y_test = train_test_split(
@@ -213,14 +237,14 @@ class ModelRetrainingSystem:
 
                 # Evaluate model
                 y_pred = model.predict(X_test)
-                rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-                r2 = r2_score(y_test, y_pred)
+                rmse = float(np.sqrt(mean_squared_error(y_test, y_pred)))
+                r2 = float(r2_score(y_test, y_pred))
 
                 # Log metrics
                 mlflow.log_metric("rmse", rmse)
                 mlflow.log_metric("r2", r2)
-                mlflow.log_metric("training_samples", len(X_train))
-                mlflow.log_metric("test_samples", len(X_test))
+                mlflow.log_metric("training_samples", int(len(X_train)))
+                mlflow.log_metric("test_samples", int(len(X_test)))
 
                 # Save model locally
                 model_path = f"models/retrained_model_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pkl"
@@ -229,45 +253,38 @@ class ModelRetrainingSystem:
                 # Log model artifact
                 mlflow.log_artifact(model_path)
 
-                # Register model if performance is good
-                if rmse <= self.threshold_rmse and r2 >= self.threshold_r2:
-                    mlflow.sklearn.log_model(model, "model")
+                # Log model to MLflow (simplified - no registry)
+                mlflow.sklearn.log_model(model, "model")
 
-                    # Register in model registry
-                    model_details = mlflow.register_model(
-                        f"runs:/{mlflow.active_run().info.run_id}/model",
-                        f"{self.model_name}_v{datetime.now().strftime('%Y%m%d')}",
-                    )
+                # Check if new model is better than current
+                current_model_path = "models/best_model.pkl"
+                if os.path.exists(current_model_path):
+                    try:
+                        current_model = joblib.load(current_model_path)
+                        # Simple comparison - in production you'd do more sophisticated evaluation
+                        if rmse <= self.threshold_rmse and r2 >= self.threshold_r2:
+                            # Replace current best model
+                            joblib.dump(model, current_model_path)
+                            logger.info("New model deployed as best_model.pkl")
+                        else:
+                            logger.info(
+                                "New model performance below thresholds, keeping current model"
+                            )
+                    except Exception as e:
+                        logger.warning(f"Could not compare with current model: {e}")
+                        # Still save as best if we can't compare
+                        if rmse <= self.threshold_rmse and r2 >= self.threshold_r2:
+                            joblib.dump(model, current_model_path)
+                            logger.info("New model deployed as best_model.pkl")
 
-                    # Transition to production if it's the best model
-                    client = mlflow.tracking.MlflowClient()
-                    client.transition_model_version_stage(
-                        name=model_details.name,
-                        version=model_details.version,
-                        stage="Production",
-                    )
+                logger.info(f"Retraining completed - RMSE: {rmse:.4f}, R2: {r2:.4f}")
 
-                    logger.info(
-                        f"New model registered and deployed: {model_details.name}"
-                    )
-
-                    return {
-                        "status": "completed",
-                        "trigger_type": trigger_type,
-                        "new_model_version": model_details.version,
-                        "performance": {"rmse": rmse, "r2": r2},
-                        "timestamp": datetime.now().isoformat(),
-                    }
-                else:
-                    logger.warning(
-                        f"Retrained model performance below thresholds: RMSE={rmse}, R2={r2}"
-                    )
-                    return {
-                        "status": "completed_below_threshold",
-                        "trigger_type": trigger_type,
-                        "performance": {"rmse": rmse, "r2": r2},
-                        "timestamp": datetime.now().isoformat(),
-                    }
+                return {
+                    "status": "completed",
+                    "trigger_type": trigger_type,
+                    "performance": {"rmse": rmse, "r2": r2},
+                    "timestamp": datetime.now().isoformat(),
+                }
 
         except Exception as e:
             logger.error(f"Error during retraining: {e}")

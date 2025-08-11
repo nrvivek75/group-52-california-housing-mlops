@@ -157,6 +157,24 @@ model_r2_score = Gauge("model_r2_score", "Model R² score", ["model_type"])
 
 instrumentator.instrument(app).expose(app)
 
+# Column mapping from API input to actual data columns
+COLUMN_MAPPING = {
+    "longitude": "Longitude",
+    "latitude": "Latitude",
+    "housing_median_age": "HouseAge",
+    "total_rooms": "AveRooms",
+    "total_bedrooms": "AveBedrms",
+    "population": "Population",
+    "households": "AveOccup",
+    "median_income": "MedInc",
+}
+
+
+def map_api_input_to_data_columns(api_input: Dict[str, float]) -> Dict[str, float]:
+    """Map API input column names to actual data column names"""
+    return {COLUMN_MAPPING[k]: v for k, v in api_input.items()}
+
+
 # Initialize retraining system (will be set in startup)
 retraining_system = None
 
@@ -456,18 +474,19 @@ async def predict(request: Request, housing_data: HousingData):
                 status_code=422, detail="Households cannot exceed population"
             )
 
-        # Convert input to numpy array
+        # Convert input to numpy array using the correct column order
+        # The model expects: [Longitude, Latitude, HouseAge, AveRooms, AveBedrms, Population, AveOccup, MedInc]
         input_features = np.array(
             [
                 [
-                    housing_data.longitude,
-                    housing_data.latitude,
-                    housing_data.housing_median_age,
-                    housing_data.total_rooms,
-                    housing_data.total_bedrooms,
-                    housing_data.population,
-                    housing_data.households,
-                    housing_data.median_income,
+                    housing_data.longitude,  # Maps to Longitude
+                    housing_data.latitude,  # Maps to Latitude
+                    housing_data.housing_median_age,  # Maps to HouseAge
+                    housing_data.total_rooms,  # Maps to AveRooms
+                    housing_data.total_bedrooms,  # Maps to AveBedrms
+                    housing_data.population,  # Maps to Population
+                    housing_data.households,  # Maps to AveOccup
+                    housing_data.median_income,  # Maps to MedInc
                 ]
             ]
         )
@@ -517,7 +536,7 @@ async def predict(request: Request, housing_data: HousingData):
         )
 
 
-@app.post("/retrain", response_model=Dict[str, str])
+@app.post("/retrain")
 async def trigger_retraining(request: RetrainingRequest):
     """Trigger model retraining based on various conditions"""
     try:
@@ -665,7 +684,7 @@ async def get_metrics():
         # Get recent predictions (last 24 hours)
         cursor.execute(
             """
-            SELECT COUNT(*) FROM predictions 
+            SELECT COUNT(*) FROM predictions
             WHERE timestamp > datetime('now', '-1 day')
         """
         )
@@ -695,9 +714,9 @@ async def get_logs(limit: int = 100):
 
         cursor.execute(
             """
-            SELECT timestamp, input_data, prediction, response_time 
-            FROM predictions 
-            ORDER BY timestamp DESC 
+            SELECT timestamp, input_data, prediction, response_time
+            FROM predictions
+            ORDER BY timestamp DESC
             LIMIT ?
         """,
             (limit,),

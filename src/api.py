@@ -42,15 +42,18 @@ async def lifespan(app: FastAPI):
     max_retries = 5
     retry_delay = 10  # seconds
 
+    logger.info("🚀 Starting model loading in lifespan event...")
+
     for attempt in range(max_retries):
         try:
             logger.info(
                 f"Attempting to load model (attempt {attempt + 1}/{max_retries})..."
             )
-            model = load_model()
+            loaded_model = load_model()
 
-            if model is not None:
-                logger.info("Model loaded successfully!")
+            if loaded_model is not None:
+                model = loaded_model  # Ensure global variable is set
+                logger.info(f"✅ Model loaded successfully! Type: {type(model).__name__}")
                 break
             else:
                 logger.warning(f"Model loading failed on attempt {attempt + 1}")
@@ -67,10 +70,21 @@ async def lifespan(app: FastAPI):
             else:
                 logger.error("Failed to load model after all retry attempts")
 
+    # Log final model status
+    if model is not None:
+        logger.info(f"🎉 Model successfully loaded in lifespan: {type(model).__name__}")
+    else:
+        logger.error("❌ Model failed to load in lifespan event")
+
     # Initialize retraining system
     try:
-        from .retraining import ModelRetrainingSystem
-
+        # Fix the relative import issue
+        try:
+            from .retraining import ModelRetrainingSystem
+        except ImportError:
+            # Fallback for when running as script
+            from retraining import ModelRetrainingSystem
+        
         retraining_system = ModelRetrainingSystem()
         logger.info("Retraining system initialized")
     except Exception as e:
@@ -239,21 +253,36 @@ def load_model():
         # First try to load from local models directory (more reliable)
         models_dir = "models"
         if os.path.exists(models_dir):
-            # Look for any .pkl files
+            # Look for actual model files first (not scalers)
+            model_files = []
             for file in os.listdir(models_dir):
                 if file.endswith(".pkl"):
-                    model_path = os.path.join(models_dir, file)
-                    try:
-                        import joblib
-
-                        model = joblib.load(model_path)
+                    file_path = os.path.join(models_dir, file)
+                    # Skip scaler files
+                    if "scaler" not in file.lower():
+                        model_files.append(file_path)
+            
+            # Try to load actual model files first
+            for model_path in model_files:
+                try:
+                    import joblib
+                    
+                    # Load the file to check if it's actually a model
+                    loaded_item = joblib.load(model_path)
+                    
+                    # Check if it has a predict method (actual model)
+                    if hasattr(loaded_item, 'predict'):
                         logger.info(
                             f"Model loaded successfully from local file: {model_path}"
                         )
-                        return model
-                    except Exception as e:
-                        logger.warning(f"Failed to load {model_path}: {e}")
+                        return loaded_item
+                    else:
+                        logger.info(f"Skipping {model_path} - not a model (type: {type(loaded_item).__name__})")
                         continue
+                        
+                except Exception as e:
+                    logger.warning(f"Failed to load {model_path}: {e}")
+                    continue
 
             # Check for MLflow model directories
             for item in os.listdir(models_dir):
@@ -352,17 +381,16 @@ def load_model():
         try:
             model = mlflow.sklearn.load_model(f"runs:/{best_run.info.run_id}/model")
             logger.info("Model loaded successfully from MLflow run")
-
+            
             # Save the model locally for future use
             try:
                 import joblib
-
                 os.makedirs("models", exist_ok=True)
                 joblib.dump(model, "models/best_model.pkl")
                 logger.info("Model saved locally for future use")
             except Exception as save_e:
                 logger.warning(f"Could not save model locally: {save_e}")
-
+            
             return model
         except Exception as mlflow_e:
             logger.warning(f"Failed to load from MLflow run: {mlflow_e}")

@@ -28,13 +28,35 @@ class ModelRetrainingSystem:
         self,
         mlflow_tracking_uri: str = "file:./mlruns",
         model_name: str = "california_housing_best_model",
-        data_path: str = "data/raw/california_housing.csv",
+        data_path: str = None,
         threshold_rmse: float = 0.5,
         threshold_r2: float = 0.7,
     ):
         self.mlflow_tracking_uri = mlflow_tracking_uri
         self.model_name = model_name
-        self.data_path = data_path
+
+        # Try to find the data file in multiple locations
+        if data_path is None:
+            possible_paths = [
+                "data/raw/california_housing.csv",
+                "./data/raw/california_housing.csv",
+                "/app/data/raw/california_housing.csv",
+                "california_housing.csv",
+            ]
+
+            for path in possible_paths:
+                if os.path.exists(path):
+                    self.data_path = path
+                    logger.info(f"Found data file at: {self.data_path}")
+                    break
+            else:
+                self.data_path = "data/raw/california_housing.csv"
+                logger.warning(
+                    f"Data file not found in any expected location, using default: {self.data_path}"
+                )
+        else:
+            self.data_path = data_path
+
         self.threshold_rmse = threshold_rmse
         self.threshold_r2 = threshold_r2
 
@@ -209,6 +231,12 @@ class ModelRetrainingSystem:
 
                 # Load and prepare data
                 data = pd.read_csv(self.data_path)
+
+                # Debug: Print actual columns in the data
+                logger.info(f"Data file path: {self.data_path}")
+                logger.info(f"Data shape: {data.shape}")
+                logger.info(f"Actual columns in data: {list(data.columns)}")
+
                 feature_cols = [
                     "Longitude",
                     "Latitude",
@@ -219,6 +247,13 @@ class ModelRetrainingSystem:
                     "AveOccup",
                     "MedInc",
                 ]
+
+                # Debug: Check if all required columns exist
+                missing_cols = [col for col in feature_cols if col not in data.columns]
+                if missing_cols:
+                    logger.error(f"Missing columns: {missing_cols}")
+                    logger.error(f"Available columns: {list(data.columns)}")
+                    raise ValueError(f"Missing required columns: {missing_cols}")
 
                 X = data[feature_cols].values
                 y = data["MedHouseVal"].values

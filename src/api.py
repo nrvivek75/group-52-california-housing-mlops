@@ -13,6 +13,7 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel, Field, validator
 import uvicorn
 from prometheus_fastapi_instrumentator import Instrumentator, metrics
+from contextlib import asynccontextmanager
 
 # Configure logging
 logging.basicConfig(
@@ -22,11 +23,44 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler for FastAPI app"""
+    global model
+    global retraining_system
+    
+    # Create logs directory if it doesn't exist
+    os.makedirs("logs", exist_ok=True)
+    
+    # Ensure database is initialized
+    init_db()
+    
+    # Load model
+    model = load_model()
+    
+    if model is None:
+        logger.error("Failed to load model on startup")
+
+    # Initialize retraining system
+    try:
+        from .retraining import ModelRetrainingSystem
+        retraining_system = ModelRetrainingSystem()
+        logger.info("Retraining system initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize retraining system: {e}")
+        retraining_system = None
+    
+    yield
+    
+    # Cleanup (if needed)
+    logger.info("Shutting down API")
+
 # Initialize FastAPI app
 app = FastAPI(
     title="California Housing Price Prediction API",
     description="MLOps API for California Housing Price Prediction with MLflow integration",
     version="2.0.0",
+    lifespan=lifespan
 )
 
 # Add CORS middleware
@@ -163,33 +197,7 @@ model = None
 # Initialize database immediately when module is imported
 init_db()
 
-
-@app.on_event("startup")
-async def startup_event():
-    global model
-    global retraining_system
-
-    # Create logs directory if it doesn't exist
-    os.makedirs("logs", exist_ok=True)
-
-    # Ensure database is initialized
-    init_db()
-
-    # Load model
-    model = load_model()
-
-    if model is None:
-        logger.error("Failed to load model on startup")
-
-    # Initialize retraining system
-    try:
-        from .retraining import ModelRetrainingSystem
-
-        retraining_system = ModelRetrainingSystem()
-        logger.info("Retraining system initialized")
-    except Exception as e:
-        logger.error(f"Failed to initialize retraining system: {e}")
-        retraining_system = None
+# Remove the old startup event handler since we're using lifespan now
 
 
 @app.get("/")

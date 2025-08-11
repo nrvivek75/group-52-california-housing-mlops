@@ -29,14 +29,14 @@ RUN wget https://dl.grafana.com/oss/release/grafana-10.0.3.linux-amd64.tar.gz \
     && mv grafana-10.0.3 /usr/local/grafana \
     && rm grafana-10.0.3.linux-amd64.tar.gz
 
-# Copy application code
+# Create necessary directories first
+RUN mkdir -p logs grafana/provisioning/dashboards grafana/provisioning/datasources
+
+# Copy application code and data
 COPY src/ ./src/
 COPY models/ ./models/
 COPY mlruns/ ./mlruns/
 COPY data/ ./data/
-
-# Create necessary directories
-RUN mkdir -p logs grafana/provisioning/dashboards grafana/provisioning/datasources
 
 # Copy configuration files
 COPY prometheus.yml ./prometheus.yml

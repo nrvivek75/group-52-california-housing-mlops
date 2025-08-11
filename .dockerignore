@@ -3,8 +3,6 @@
 README.md
 .dvc
 dvc.yaml
-mlruns/
-logs/
 *.pyc
 __pycache__/
 .pytest_cache/

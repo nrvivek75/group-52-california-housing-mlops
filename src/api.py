@@ -53,7 +53,9 @@ async def lifespan(app: FastAPI):
 
             if loaded_model is not None:
                 model = loaded_model  # Ensure global variable is set
-                logger.info(f"✅ Model loaded successfully! Type: {type(model).__name__}")
+                logger.info(
+                    f"✅ Model loaded successfully! Type: {type(model).__name__}"
+                )
                 break
             else:
                 logger.warning(f"Model loading failed on attempt {attempt + 1}")
@@ -84,7 +86,7 @@ async def lifespan(app: FastAPI):
         except ImportError:
             # Fallback for when running as script
             from retraining import ModelRetrainingSystem
-        
+
         retraining_system = ModelRetrainingSystem()
         logger.info("Retraining system initialized")
     except Exception as e:
@@ -261,25 +263,27 @@ def load_model():
                     # Skip scaler files
                     if "scaler" not in file.lower():
                         model_files.append(file_path)
-            
+
             # Try to load actual model files first
             for model_path in model_files:
                 try:
                     import joblib
-                    
+
                     # Load the file to check if it's actually a model
                     loaded_item = joblib.load(model_path)
-                    
+
                     # Check if it has a predict method (actual model)
-                    if hasattr(loaded_item, 'predict'):
+                    if hasattr(loaded_item, "predict"):
                         logger.info(
                             f"Model loaded successfully from local file: {model_path}"
                         )
                         return loaded_item
                     else:
-                        logger.info(f"Skipping {model_path} - not a model (type: {type(loaded_item).__name__})")
+                        logger.info(
+                            f"Skipping {model_path} - not a model (type: {type(loaded_item).__name__})"
+                        )
                         continue
-                        
+
                 except Exception as e:
                     logger.warning(f"Failed to load {model_path}: {e}")
                     continue
@@ -381,16 +385,17 @@ def load_model():
         try:
             model = mlflow.sklearn.load_model(f"runs:/{best_run.info.run_id}/model")
             logger.info("Model loaded successfully from MLflow run")
-            
+
             # Save the model locally for future use
             try:
                 import joblib
+
                 os.makedirs("models", exist_ok=True)
                 joblib.dump(model, "models/best_model.pkl")
                 logger.info("Model saved locally for future use")
             except Exception as save_e:
                 logger.warning(f"Could not save model locally: {save_e}")
-            
+
             return model
         except Exception as mlflow_e:
             logger.warning(f"Failed to load from MLflow run: {mlflow_e}")

@@ -1,0 +1,62 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "MLOps Main Dashboard",
+    "tags": ["mlops", "main"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "API Health Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=\"api\"}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "green", "value": 1}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "HTTP Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[5m])",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Model Predictions",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "model_predictions_total",
+            "refId": "A"
+          }
+        ]
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "10s"
+  },
+  "overwrite": true
+} 

@@ -42,9 +42,8 @@ COPY configs/ ./configs/
 
 # Copy configuration files
 COPY prometheus.yml ./prometheus.yml
-COPY grafana-dashboard.json ./grafana/provisioning/dashboards/
-COPY grafana/provisioning/dashboards/dashboard.yml ./grafana/provisioning/dashboards/
-COPY grafana/provisioning/datasources/datasource.yml ./grafana/provisioning/datasources/
+COPY grafana/provisioning/dashboards/ ./grafana/provisioning/dashboards/
+COPY grafana/provisioning/datasources/ ./grafana/provisioning/datasources/
 
 # Copy supervisor configuration
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf

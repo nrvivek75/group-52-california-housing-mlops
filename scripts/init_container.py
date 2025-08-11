@@ -87,8 +87,7 @@ def train_models():
         # Check if we have the config file
         config_file = Path("/app/configs/config.yaml")
         if not config_file.exists():
-            log_error("Config file not found")
-            return False
+            log_warning("Config file not found, will use defaults")
         
         # Run training script with verbose output
         log_info("Starting model training...")
@@ -291,7 +290,9 @@ def main():
         # Try to train models first
         if not train_models():
             log_warning("Model training failed, creating comprehensive runs instead")
-            create_comprehensive_mlflow_runs()
+            if not create_comprehensive_mlflow_runs():
+                log_error("Failed to create any MLflow runs!")
+                return False
         
         # Initialize MLflow
         initialize_mlflow()
@@ -300,10 +301,13 @@ def main():
         fix_grafana_dashboards()
         
         log_success("Container initialization completed successfully!")
+        return True
         
     except Exception as e:
         log_error(f"Initialization failed: {e}")
-        sys.exit(1)
+        return False
 
 if __name__ == "__main__":
-    main() 
+    success = main()
+    if not success:
+        sys.exit(1) 

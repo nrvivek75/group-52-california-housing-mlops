@@ -1,4 +1,4 @@
-# All-in-One MLOps Docker Deployment Guide
+# MLOps Docker Deployment Guide
 
 ## What This Achieves
 
@@ -30,22 +30,22 @@ This guide shows you how to deploy **ALL 4 MLOps services** using just **ONE Doc
 ### Step 1: Build the All-in-One Image
 ```bash
 # Option A: Use the script (recommended)
-./scripts/start-all-in-one.sh build
+./scripts/start.sh build
 
 # Option B: Use docker-compose
-docker-compose -f docker-compose.all-in-one.yml build
+docker-compose build
 
 # Option C: Manual Docker build
-docker build -f Dockerfile.all-in-one -t mlops-all-in-one:latest .
+docker build -f Dockerfile -t mlops-all-in-one:latest .
 ```
 
 ### Step 2: Start All Services
 ```bash
 # Option A: Use the script (recommended)
-./scripts/start-all-in-one.sh start
+./scripts/start.sh start
 
 # Option B: Use docker-compose
-docker-compose -f docker-compose.all-in-one.yml up -d
+docker-compose up -d
 
 # Option C: Manual Docker run
 docker run -d \
@@ -76,46 +76,46 @@ Grafana:         http://localhost:3000 (admin/admin)
 
 ### 1. Using the Script (Recommended)
 
-The `scripts/start-all-in-one.sh` script handles everything automatically:
+The `scripts/start.sh` script handles everything automatically:
 
 ```bash
 # Start everything
-./scripts/start-all-in-one.sh start
+./scripts/start.sh start
 
 # Check status
-./scripts/start-all-in-one.sh status
+./scripts/start.sh status
 
 # View logs
-./scripts/start-all-in-one.sh logs
+./scripts/start.sh logs
 
 # Stop services
-./scripts/start-all-in-one.sh stop
+./scripts/start.sh stop
 
 # Remove container
-./scripts/start-all-in-one.sh remove
+./scripts/start.sh remove
 
 # Get help
-./scripts/start-all-in-one.sh help
+./scripts/start.sh help
 ```
 
 ### 2. Using Docker Compose
 
 ```bash
 # Build and start
-docker-compose -f docker-compose.all-in-one.yml up -d
+docker-compose up -d
 
 # View logs
-docker-compose -f docker-compose.all-in-one.yml logs -f
+docker-compose logs -f
 
 # Stop
-docker-compose -f docker-compose.all-in-one.yml down
+docker-compose down
 ```
 
 ### 3. Manual Docker Commands
 
 ```bash
 # Build image
-docker build -f Dockerfile.all-in-one -t mlops-all-in-one:latest .
+docker build -f Dockerfile -t mlops-all-in-one:latest .
 
 # Run container
 docker run -d \

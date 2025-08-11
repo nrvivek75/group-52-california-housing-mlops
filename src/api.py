@@ -284,8 +284,16 @@ def load_model():
         best_rmse = float("inf")
 
         for run in runs:
+            # Check for different RMSE metric names that might exist
+            rmse = None
             if run.data.metrics.get("rmse"):
                 rmse = run.data.metrics["rmse"]
+            elif run.data.metrics.get("test_rmse"):
+                rmse = run.data.metrics["test_rmse"]
+            elif run.data.metrics.get("train_rmse"):
+                rmse = run.data.metrics["train_rmse"]
+
+            if rmse is not None:
                 logger.info(f"Run {run.info.run_name} has RMSE: {rmse}")
                 if rmse < best_rmse:
                     best_rmse = rmse

@@ -41,12 +41,14 @@ async def lifespan(app: FastAPI):
     model = None
     max_retries = 5
     retry_delay = 10  # seconds
-    
+
     for attempt in range(max_retries):
         try:
-            logger.info(f"Attempting to load model (attempt {attempt + 1}/{max_retries})...")
+            logger.info(
+                f"Attempting to load model (attempt {attempt + 1}/{max_retries})..."
+            )
             model = load_model()
-            
+
             if model is not None:
                 logger.info("Model loaded successfully!")
                 break
@@ -126,10 +128,16 @@ instrumentator.add(
 from prometheus_client import Counter, Histogram, Gauge
 
 # Custom metrics for MLOps
-prediction_counter = Counter('model_predictions_total', 'Total number of predictions made', ['model_type', 'status'])
-prediction_latency = Histogram('model_prediction_duration_seconds', 'Time spent making predictions', ['model_type'])
-model_accuracy = Gauge('model_rmse', 'Model RMSE score', ['model_type'])
-model_r2_score = Gauge('model_r2_score', 'Model R² score', ['model_type'])
+prediction_counter = Counter(
+    "model_predictions_total",
+    "Total number of predictions made",
+    ["model_type", "status"],
+)
+prediction_latency = Histogram(
+    "model_prediction_duration_seconds", "Time spent making predictions", ["model_type"]
+)
+model_accuracy = Gauge("model_rmse", "Model RMSE score", ["model_type"])
+model_r2_score = Gauge("model_r2_score", "Model R² score", ["model_type"])
 
 instrumentator.instrument(app).expose(app)
 
@@ -225,80 +233,88 @@ def load_model():
     """Load the best MLflow model from runs"""
     try:
         # Set MLflow tracking URI
-        mlflow.set_tracking_uri('file:./mlruns')
-        
+        mlflow.set_tracking_uri("file:./mlruns")
+
         # Get the experiment
-        experiment = mlflow.get_experiment_by_name('california_housing_experiment')
+        experiment = mlflow.get_experiment_by_name("california_housing_experiment")
         if not experiment:
             logger.error("MLflow experiment not found")
             return None
-        
+
         # Get the client
         client = mlflow.tracking.MlflowClient()
-        
+
         # Search for runs
         runs = client.search_runs(experiment_ids=[experiment.experiment_id])
         if not runs:
             logger.error("No MLflow runs found")
             return None
-        
+
         # Get the best run (lowest RMSE)
         best_run = None
-        best_rmse = float('inf')
-        
+        best_rmse = float("inf")
+
         for run in runs:
-            if run.data.metrics.get('rmse'):
-                rmse = run.data.metrics['rmse']
+            if run.data.metrics.get("rmse"):
+                rmse = run.data.metrics["rmse"]
                 if rmse < best_rmse:
                     best_rmse = rmse
                     best_run = run
-        
+
         if not best_run:
             logger.error("No run with RMSE metric found")
             return None
-        
-        logger.info(f"Loading best model from run: {best_run.info.run_name} (RMSE: {best_rmse:.2f})")
-        
+
+        logger.info(
+            f"Loading best model from run: {best_run.info.run_name} (RMSE: {best_rmse:.2f})"
+        )
+
         # Load the model from the run
         model = mlflow.sklearn.load_model(f"runs:/{best_run.info.run_id}/model")
         logger.info("Model loaded successfully from MLflow run")
         return model
-        
+
     except Exception as e:
         logger.error(f"Error loading model from MLflow: {e}")
-        
+
         # Fallback: try to load from local models directory
         try:
             import joblib
-            
+
             # Check for models in the models directory
             models_dir = "models"
             if os.path.exists(models_dir):
                 # Look for any .pkl files
                 for file in os.listdir(models_dir):
-                    if file.endswith('.pkl'):
+                    if file.endswith(".pkl"):
                         model_path = os.path.join(models_dir, file)
                         model = joblib.load(model_path)
-                        logger.info(f"Model loaded successfully from local file: {model_path}")
+                        logger.info(
+                            f"Model loaded successfully from local file: {model_path}"
+                        )
                         return model
-                
+
                 # Check for MLflow model directories
                 for item in os.listdir(models_dir):
                     item_path = os.path.join(models_dir, item)
-                    if os.path.isdir(item_path) and os.path.exists(os.path.join(item_path, 'conda.yaml')):
+                    if os.path.isdir(item_path) and os.path.exists(
+                        os.path.join(item_path, "conda.yaml")
+                    ):
                         try:
                             model = mlflow.sklearn.load_model(item_path)
-                            logger.info(f"Model loaded successfully from local MLflow directory: {item_path}")
+                            logger.info(
+                                f"Model loaded successfully from local MLflow directory: {item_path}"
+                            )
                             return model
                         except Exception as dir_e:
                             logger.warning(f"Failed to load from {item_path}: {dir_e}")
                             continue
-            
+
             logger.error("No local model files found")
-            
+
         except Exception as local_e:
             logger.error(f"Error loading local model: {local_e}")
-        
+
         return None
 
 
@@ -394,7 +410,7 @@ async def predict(request: Request, housing_data: HousingData):
         else:
             model_type = "unknown"
         prediction_counter.labels(model_type=model_type, status="failed").inc()
-        
+
         logger.error(f"Prediction error: {e}")
         raise HTTPException(
             status_code=500,

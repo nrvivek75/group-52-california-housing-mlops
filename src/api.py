@@ -175,23 +175,17 @@ class HousingData(BaseModel):
     @field_validator("total_bedrooms")
     @classmethod
     def validate_bedrooms(cls, v, info):
-        if (
-            hasattr(info, "data")
-            and "total_rooms" in info.data
-            and v > info.data["total_rooms"]
-        ):
-            raise ValueError("Total bedrooms cannot exceed total rooms")
+        # Simple validation - we'll handle complex validation in the API logic
+        if v < 0:
+            raise ValueError("Total bedrooms cannot be negative")
         return v
 
     @field_validator("households")
     @classmethod
     def validate_households(cls, v, info):
-        if (
-            hasattr(info, "data")
-            and "population" in info.data
-            and v > info.data["population"]
-        ):
-            raise ValueError("Households cannot exceed population")
+        # Simple validation - we'll handle complex validation in the API logic
+        if v < 0:
+            raise ValueError("Households cannot be negative")
         return v
 
 
@@ -245,17 +239,42 @@ def load_model():
         # Set MLflow tracking URI
         mlflow.set_tracking_uri("file:./mlruns")
 
-        # Get the experiment
+        # First try to get the experiment by name
         experiment = mlflow.get_experiment_by_name("california_housing_experiment")
+
+        # If not found, try to get the default experiment or list all experiments
+        if experiment is None:
+            logger.info(
+                "Experiment 'california_housing_experiment' not found, searching for alternatives..."
+            )
+
+            # Try to get the default experiment
+            try:
+                experiment = mlflow.get_experiment(0)  # Default experiment ID
+                logger.info(f"Using default experiment: {experiment.name}")
+            except:
+                # List all experiments and use the first one
+                experiments = mlflow.search_experiments()
+                if experiments:
+                    experiment = experiments[0]
+                    logger.info(f"Using first available experiment: {experiment.name}")
+                else:
+                    logger.error("No MLflow experiments found")
+                    return None
+
         if not experiment:
-            logger.error("MLflow experiment not found")
+            logger.error("No MLflow experiment found")
             return None
+
+        logger.info(f"Using experiment: {experiment.name}")
 
         # Get the client
         client = mlflow.tracking.MlflowClient()
 
         # Search for runs
         runs = client.search_runs(experiment_ids=[experiment.experiment_id])
+        logger.info(f"Found {len(runs)} MLflow runs")
+
         if not runs:
             logger.error("No MLflow runs found")
             return None
@@ -267,12 +286,16 @@ def load_model():
         for run in runs:
             if run.data.metrics.get("rmse"):
                 rmse = run.data.metrics["rmse"]
+                logger.info(f"Run {run.info.run_name} has RMSE: {rmse}")
                 if rmse < best_rmse:
                     best_rmse = rmse
                     best_run = run
 
         if not best_run:
             logger.error("No run with RMSE metric found")
+            # List all runs and their metrics for debugging
+            for run in runs:
+                logger.info(f"Run {run.info.run_name} metrics: {run.data.metrics}")
             return None
 
         logger.info(
@@ -365,6 +388,17 @@ async def predict(request: Request, housing_data: HousingData):
             raise HTTPException(
                 status_code=503,
                 detail="Model not available. Please ensure the model is trained and loaded.",
+            )
+
+        # Additional validation logic
+        if housing_data.total_bedrooms > housing_data.total_rooms:
+            raise HTTPException(
+                status_code=422, detail="Total bedrooms cannot exceed total rooms"
+            )
+
+        if housing_data.households > housing_data.population:
+            raise HTTPException(
+                status_code=422, detail="Households cannot exceed population"
             )
 
         # Convert input to numpy array

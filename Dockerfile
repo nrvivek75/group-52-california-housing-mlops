@@ -37,6 +37,7 @@ COPY src/ ./src/
 COPY models/ ./models/
 COPY mlruns/ ./mlruns/
 COPY data/ ./data/
+COPY scripts/ ./scripts/
 
 # Copy configuration files
 COPY prometheus.yml ./prometheus.yml
@@ -46,6 +47,9 @@ COPY grafana/provisioning/datasources/datasource.yml ./grafana/provisioning/data
 
 # Copy supervisor configuration
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Make scripts executable
+RUN chmod +x scripts/*.sh scripts/*.py
 
 # Expose ports
 EXPOSE 8001 5002 9090 3000

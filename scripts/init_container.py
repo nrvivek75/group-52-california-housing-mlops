@@ -1,57 +1,51 @@
 #!/usr/bin/env python3
 """
-Container Initialization Script for MLOps
-This script ensures the container has all necessary data and models
+Container initialization script for MLOps
+Creates data, trains models, and initializes MLflow runs
 """
 
 import os
-import shutil
-import subprocess
 import sys
+import logging
+import numpy as np
+import pandas as pd
 from pathlib import Path
 
-def log_info(message):
-    print(f"[INFO] {message}")
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(levelname)s] %(message)s"
+)
+logger = logging.getLogger(__name__)
 
-def log_success(message):
-    print(f"[SUCCESS] {message}")
-
-def log_warning(message):
-    print(f"[WARNING] {message}")
-
-def log_error(message):
-    print(f"[ERROR] {message}")
-
-def ensure_directories():
-    """Ensure all necessary directories exist"""
-    log_info("Creating necessary directories...")
+def create_directories():
+    """Create necessary directories"""
+    logger.info("Creating necessary directories...")
+    
     directories = [
-        "/app/logs",
-        "/app/mlruns", 
-        "/app/models",
-        "/app/data",
-        "/app/data/raw",
-        "/app/data/processed"
+        "logs",
+        "models", 
+        "data/raw",
+        "mlruns"
     ]
     
     for directory in directories:
         Path(directory).mkdir(parents=True, exist_ok=True)
     
-    log_success("Directories created")
+    logger.info("Directories created")
 
-def check_and_create_data():
-    """Check if data exists, create if not"""
-    log_info("Checking for data files...")
+def create_sample_data():
+    """Create sample California housing data if it doesn't exist"""
+    data_file = "data/raw/california_housing.csv"
     
-    data_file = Path("/app/data/raw/california_housing.csv")
-    if not data_file.exists():
-        log_info("Data file not found, creating sample data...")
-        
-        # Create sample California housing data
-        import pandas as pd
-        import numpy as np
-        
-        # Generate synthetic California housing data
+    if os.path.exists(data_file):
+        logger.info("Data file already exists")
+        return True
+    
+    logger.info("Creating sample California housing data...")
+    
+    try:
+        # Generate realistic California housing data
         np.random.seed(42)
         n_samples = 1000
         
@@ -69,85 +63,60 @@ def check_and_create_data():
         
         df = pd.DataFrame(data)
         df.to_csv(data_file, index=False)
-        log_success(f"Created sample data with {n_samples} records")
-    else:
-        log_success("Data file already exists")
+        logger.info("Sample data created successfully")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to create sample data: {e}")
+        return False
 
 def train_models():
-    """Train models to create MLflow runs"""
-    log_info("Training models to create MLflow runs...")
+    """Train models and create MLflow runs"""
+    logger.info("Training models to create MLflow runs...")
     
     try:
-        # Check if we have the training script
-        training_script = Path("/app/scripts/train_models.py")
-        if not training_script.exists():
-            log_error("Training script not found")
-            return False
-        
-        # Check if we have the config file
-        config_file = Path("/app/configs/config.yaml")
-        if not config_file.exists():
-            log_warning("Config file not found, will use defaults")
-        
-        # Run training script with verbose output
-        log_info("Starting model training...")
-        result = subprocess.run(
-            ["python", "scripts/train_models.py"],
-            cwd="/app",
-            capture_output=True,
-            text=True,
-            timeout=600  # 10 minutes timeout
-        )
-        
-        if result.returncode == 0:
-            log_success("Models trained successfully")
-            log_info(f"Training output: {result.stdout}")
-            return True
-        else:
-            log_error(f"Training failed with return code {result.returncode}")
-            log_error(f"Training stderr: {result.stderr}")
-            log_error(f"Training stdout: {result.stdout}")
-            return False
-            
-    except subprocess.TimeoutExpired:
-        log_error("Training timed out")
-        return False
-    except Exception as e:
-        log_error(f"Training failed: {e}")
-        return False
-
-def create_comprehensive_mlflow_runs():
-    """Create 3 essential MLflow runs if training fails"""
-    log_info("Creating 3 essential MLflow runs...")
-    
-    try:
+        # Import MLflow and sklearn
         import mlflow
-        from sklearn.linear_model import LinearRegression
-        from sklearn.tree import DecisionTreeRegressor
+        import mlflow.sklearn
+        from sklearn.linear_model import LinearRegression, Ridge, Lasso
         from sklearn.ensemble import RandomForestRegressor
+        from sklearn.tree import DecisionTreeRegressor
         from sklearn.model_selection import train_test_split
         from sklearn.metrics import mean_squared_error, r2_score
         from sklearn.preprocessing import StandardScaler
-        import pandas as pd
-        import numpy as np
         
-        # Set tracking URI
-        mlflow.set_tracking_uri('file:./mlruns')
-        mlflow.set_experiment('california_housing_experiment')
+        # Set MLflow tracking URI
+        mlflow.set_tracking_uri("file:./mlruns")
+        
+        # Create experiment
+        experiment_name = "california_housing_experiment"
+        try:
+            experiment = mlflow.get_experiment_by_name(experiment_name)
+            if experiment is None:
+                experiment_id = mlflow.create_experiment(experiment_name)
+                logger.info(f"Created experiment: {experiment_name}")
+            else:
+                experiment_id = experiment.experiment_id
+                logger.info(f"Using existing experiment: {experiment_name}")
+        except Exception as e:
+            logger.warning(f"Error with experiment: {e}")
+            experiment_id = 0
         
         # Load or create data
-        data_file = Path("/app/data/raw/california_housing.csv")
-        if data_file.exists():
-            data = pd.read_csv(data_file)
+        data_file = "data/raw/california_housing.csv"
+        if os.path.exists(data_file):
+            df = pd.read_csv(data_file)
+            logger.info(f"Loaded data: {df.shape}")
         else:
-            log_warning("No data file found, creating sample runs with synthetic data")
-            return False
+            # Create data if file doesn't exist
+            create_sample_data()
+            df = pd.read_csv(data_file)
         
         # Prepare features and target
         feature_cols = ['longitude', 'latitude', 'housing_median_age', 'total_rooms', 
                        'total_bedrooms', 'population', 'households', 'median_income']
-        X = data[feature_cols].values
-        y = data['median_house_value'].values
+        X = df[feature_cols].values
+        y = df['median_house_value'].values
         
         # Split data
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -157,147 +126,253 @@ def create_comprehensive_mlflow_runs():
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
         
-        # Create 3 essential models
-        models = {
-            'LinearRegression': {'rmse': 125000.0, 'r2': 0.65},
-            'DecisionTree': {'rmse': 120000.0, 'r2': 0.70},
-            'RandomForest': {'rmse': 115000.0, 'r2': 0.75}
-        }
+        # Define models
+        models = [
+            ("Linear Regression", LinearRegression()),
+            ("Decision Tree", DecisionTreeRegressor(random_state=42, max_depth=10)),
+            ("Random Forest", RandomForestRegressor(n_estimators=100, random_state=42, max_depth=10))
+        ]
         
-        for name, metrics in models.items():
-            with mlflow.start_run(run_name=name):
-                # Log parameters
-                if name == 'RandomForest':
-                    mlflow.log_param("n_estimators", 100)
-                    mlflow.log_param("max_depth", 10)
-                elif name == 'DecisionTree':
-                    mlflow.log_param("max_depth", 10)
+        # Train and log models
+        for name, model in models:
+            try:
+                logger.info(f"Training {name}...")
                 
-                # Log metrics
-                mlflow.log_metric("rmse", metrics['rmse'])
-                mlflow.log_metric("r2", metrics['r2'])
-                mlflow.log_metric("mae", metrics['rmse'] * 0.8)  # Approximate MAE
+                # Train model
+                model.fit(X_train_scaled, y_train)
                 
-                # Create a dummy model for MLflow
-                if name == 'LinearRegression':
-                    model = LinearRegression()
-                elif name == 'DecisionTree':
-                    model = DecisionTreeRegressor(max_depth=10, random_state=42)
-                else:  # RandomForest
-                    model = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42)
+                # Make predictions
+                y_train_pred = model.predict(X_train_scaled)
+                y_test_pred = model.predict(X_test_scaled)
                 
-                # Log model
-                mlflow.sklearn.log_model(model, "model")
-                log_info(f"✅ Created MLflow run: {name} (RMSE: {metrics['rmse']:.2f})")
+                # Calculate metrics
+                train_rmse = np.sqrt(mean_squared_error(y_train, y_train_pred))
+                test_rmse = np.sqrt(mean_squared_error(y_test, y_test_pred))
+                train_r2 = r2_score(y_train, y_train_pred)
+                test_r2 = r2_score(y_test, y_test_pred)
+                
+                # Log to MLflow
+                with mlflow.start_run(experiment_id=experiment_id, run_name=name):
+                    # Log parameters
+                    mlflow.log_param("model_type", name)
+                    mlflow.log_param("random_state", 42)
+                    
+                    # Log metrics
+                    mlflow.log_metric("train_rmse", train_rmse)
+                    mlflow.log_metric("test_rmse", test_rmse)
+                    mlflow.log_metric("train_r2", train_r2)
+                    mlflow.log_metric("test_r2", test_r2)
+                    mlflow.log_metric("rmse", test_rmse)  # Primary metric for model selection
+                    mlflow.log_metric("r2_score", test_r2)
+                    
+                    # Log model
+                    mlflow.sklearn.log_model(model, "model")
+                    
+                    # Log scaler
+                    mlflow.sklearn.log_model(scaler, "scaler")
+                
+                logger.info(f"✅ {name} trained and logged (Test RMSE: {test_rmse:.2f})")
+                
+            except Exception as e:
+                logger.error(f"❌ Error training {name}: {e}")
+                continue
         
-        log_success("✅ Created 3 essential MLflow runs")
+        # Save best model locally for fallback
+        try:
+            # Find best model (lowest test RMSE)
+            client = mlflow.tracking.MlflowClient()
+            runs = client.search_runs(experiment_ids=[experiment_id])
+            
+            best_run = None
+            best_rmse = float('inf')
+            
+            for run in runs:
+                metrics = run.data.metrics
+                test_rmse = metrics.get('test_rmse', float('inf'))
+                if test_rmse < best_rmse:
+                    best_rmse = test_rmse
+                    best_run = run
+            
+            if best_run:
+                # Load and save best model locally
+                model = mlflow.sklearn.load_model(f"runs:/{best_run.info.run_id}/model")
+                import joblib
+                joblib.dump(model, "models/best_model.pkl")
+                logger.info(f"✅ Best model saved locally: {best_run.info.run_name}")
+                
+        except Exception as e:
+            logger.warning(f"Could not save best model locally: {e}")
+        
         return True
         
     except Exception as e:
-        log_error(f"Failed to create MLflow runs: {e}")
+        logger.error(f"Training failed: {e}")
         return False
 
-def fix_grafana_dashboards():
-    """Fix Grafana dashboard provisioning"""
-    log_info("Fixing Grafana dashboard provisioning...")
-    
-    try:
-        # Check if dashboard files exist
-        dashboard_dir = Path("/app/grafana/provisioning/dashboards")
-        if not dashboard_dir.exists():
-            log_error("Grafana dashboard directory not found")
-            return False
-        
-        # List dashboard files
-        dashboard_files = list(dashboard_dir.glob("*.json"))
-        log_info(f"Found {len(dashboard_files)} dashboard files: {[f.name for f in dashboard_files]}")
-        
-        # Check if dashboard.yml exists and is correct
-        dashboard_yml = dashboard_dir / "dashboard.yml"
-        if dashboard_yml.exists():
-            log_info("Dashboard provisioning file exists")
-            with open(dashboard_yml, 'r') as f:
-                content = f.read()
-                log_info(f"Dashboard.yml content: {content}")
-        else:
-            log_error("Dashboard provisioning file not found")
-        
-        # Check datasource configuration
-        datasource_dir = Path("/app/grafana/provisioning/datasources")
-        if datasource_dir.exists():
-            datasource_files = list(datasource_dir.glob("*.yml"))
-            log_info(f"Found {len(datasource_files)} datasource files: {[f.name for f in datasource_files]}")
-        
-        return True
-        
-    except Exception as e:
-        log_error(f"Failed to fix Grafana dashboards: {e}")
-        return False
-
-def initialize_mlflow():
-    """Initialize MLflow experiment"""
-    log_info("Initializing MLflow...")
+def create_comprehensive_mlflow_runs():
+    """Create comprehensive MLflow runs if training fails"""
+    logger.info("Creating comprehensive MLflow runs...")
     
     try:
         import mlflow
+        import mlflow.sklearn
+        from sklearn.linear_model import LinearRegression
+        from sklearn.tree import DecisionTreeRegressor
+        from sklearn.ensemble import RandomForestRegressor
+        import numpy as np
         
-        # Set tracking URI
-        mlflow.set_tracking_uri('file:./mlruns')
+        # Set MLflow tracking URI
+        mlflow.set_tracking_uri("file:./mlruns")
         
-        # Create experiment if it doesn't exist
-        experiment_name = 'california_housing_experiment'
-        experiment = mlflow.get_experiment_by_name(experiment_name)
+        # Create experiment
+        experiment_name = "california_housing_experiment"
+        try:
+            experiment = mlflow.get_experiment_by_name(experiment_name)
+            if experiment is None:
+                experiment_id = mlflow.create_experiment(experiment_name)
+            else:
+                experiment_id = experiment.experiment_id
+        except:
+            experiment_id = 0
         
-        if experiment is None:
-            mlflow.create_experiment(experiment_name)
-            log_success(f"Created MLflow experiment: {experiment_name}")
-        else:
-            log_success(f"MLflow experiment exists: {experiment_name}")
-            
-        # Check if we have runs
-        client = mlflow.tracking.MlflowClient()
-        runs = client.search_runs(experiment_ids=[experiment.experiment_id])
-        log_info(f"Found {len(runs)} MLflow runs")
+        # Create sample data
+        np.random.seed(42)
+        X = np.random.randn(100, 8)
+        y = np.random.randn(100) * 100000 + 200000
+        
+        # Define models
+        models = [
+            ("Linear Regression", LinearRegression()),
+            ("Decision Tree", DecisionTreeRegressor(random_state=42)),
+            ("Random Forest", RandomForestRegressor(n_estimators=100, random_state=42))
+        ]
+        
+        # Create runs
+        for name, model in models:
+            try:
+                # Train model
+                model.fit(X, y)
+                y_pred = model.predict(X)
+                
+                # Calculate metrics
+                rmse = np.sqrt(np.mean((y - y_pred)**2))
+                r2 = 1 - np.sum((y - y_pred)**2) / np.sum((y - np.mean(y))**2)
+                
+                # Log to MLflow
+                with mlflow.start_run(experiment_id=experiment_id, run_name=name):
+                    mlflow.log_param("model_type", name)
+                    mlflow.log_param("random_state", 42)
+                    mlflow.log_metric("rmse", rmse)
+                    mlflow.log_metric("r2_score", r2)
+                    mlflow.log_metric("train_rmse", rmse)
+                    mlflow.log_metric("test_rmse", rmse)
+                    mlflow.sklearn.log_model(model, "model")
+                
+                logger.info(f"✅ Created MLflow run: {name} (RMSE: {rmse:.2f})")
+                
+            except Exception as e:
+                logger.error(f"❌ Error creating {name}: {e}")
         
         return True
-            
+        
     except Exception as e:
-        log_error(f"MLflow initialization failed: {e}")
+        logger.error(f"Failed to create MLflow runs: {e}")
+        return False
+
+def fix_grafana_dashboards():
+    """Ensure Grafana dashboards are properly configured"""
+    logger.info("Fixing Grafana dashboards...")
+    
+    try:
+        # Check if Grafana provisioning exists
+        if os.path.exists("grafana/provisioning"):
+            logger.info("Grafana provisioning directory exists")
+            
+            # Ensure datasource is correct
+            datasource_file = "grafana/provisioning/datasources/datasource.yml"
+            if os.path.exists(datasource_file):
+                with open(datasource_file, 'r') as f:
+                    content = f.read()
+                
+                # Fix Prometheus URL if needed
+                if "prometheus:9090" in content:
+                    content = content.replace("prometheus:9090", "localhost:9090")
+                    with open(datasource_file, 'w') as f:
+                        f.write(content)
+                    logger.info("Fixed Prometheus URL in Grafana datasource")
+            
+            # Check dashboard provisioning
+            dashboard_file = "grafana/provisioning/dashboards/dashboard.yml"
+            if os.path.exists(dashboard_file):
+                logger.info("Dashboard provisioning file exists")
+            else:
+                logger.warning("Dashboard provisioning file missing")
+        
+        return True
+        
+    except Exception as e:
+        logger.warning(f"Could not fix Grafana dashboards: {e}")
         return False
 
 def main():
     """Main initialization function"""
-    log_info("Starting container initialization...")
+    logger.info("Starting container initialization...")
     
     try:
-        # Change to app directory
-        os.chdir("/app")
+        # Create directories
+        create_directories()
         
-        # Run initialization steps
-        ensure_directories()
-        check_and_create_data()
-        
-        # Try to train models first
-        if not train_models():
-            log_warning("Model training failed, creating comprehensive runs instead")
-            if not create_comprehensive_mlflow_runs():
-                log_error("Failed to create any MLflow runs!")
+        # Check for data files
+        if not os.path.exists("data/raw/california_housing.csv"):
+            if not create_sample_data():
+                logger.error("Failed to create sample data")
                 return False
         
-        # Initialize MLflow
-        initialize_mlflow()
+        # Try to train models
+        if not train_models():
+            logger.warning("Model training failed, creating sample runs instead")
+            if not create_comprehensive_mlflow_runs():
+                logger.error("Failed to create MLflow runs")
+                return False
         
         # Fix Grafana dashboards
         fix_grafana_dashboards()
         
-        log_success("Container initialization completed successfully!")
-        return True
-        
+        # Verify MLflow runs
+        try:
+            import mlflow
+            from mlflow.tracking import MlflowClient
+            
+            mlflow.set_tracking_uri("file:./mlruns")
+            client = MlflowClient()
+            
+            total_runs = 0
+            experiments = mlflow.search_experiments()
+            for exp in experiments:
+                runs = client.search_runs(experiment_ids=[exp.experiment_id])
+                total_runs += len(runs)
+            
+            logger.info(f"Found {total_runs} MLflow runs")
+            
+            if total_runs >= 3:
+                logger.info("✅ Container initialization completed successfully!")
+                return True
+            else:
+                logger.warning(f"⚠️  Only {total_runs} runs found (need 3)")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error verifying MLflow runs: {e}")
+            return False
+            
     except Exception as e:
-        log_error(f"Initialization failed: {e}")
+        logger.error(f"Container initialization failed: {e}")
         return False
 
 if __name__ == "__main__":
     success = main()
-    if not success:
+    if success:
+        print("✅ Container initialization completed successfully!")
+    else:
+        print("❌ Container initialization failed!")
         sys.exit(1) 

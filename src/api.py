@@ -352,6 +352,17 @@ def load_model():
         try:
             model = mlflow.sklearn.load_model(f"runs:/{best_run.info.run_id}/model")
             logger.info("Model loaded successfully from MLflow run")
+
+            # Save the model locally for future use
+            try:
+                import joblib
+
+                os.makedirs("models", exist_ok=True)
+                joblib.dump(model, "models/best_model.pkl")
+                logger.info("Model saved locally for future use")
+            except Exception as save_e:
+                logger.warning(f"Could not save model locally: {save_e}")
+
             return model
         except Exception as mlflow_e:
             logger.warning(f"Failed to load from MLflow run: {mlflow_e}")

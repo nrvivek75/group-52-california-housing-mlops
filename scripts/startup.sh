@@ -85,6 +85,48 @@ else
     log_success "MLflow already properly initialized"
 fi
 
+# Test model loading to ensure API will work
+log_info "Testing model loading capability..."
+if command -v python &> /dev/null; then
+    python -c "
+import sys
+import os
+sys.path.append('/app')
+
+try:
+    from src.api import load_model
+    model = load_model()
+    if model is not None:
+        print('✅ Model loading test successful!')
+        print(f'Model type: {type(model).__name__}')
+        
+        # Test prediction
+        import numpy as np
+        test_data = np.array([[-118.25, 34.05, 35.0, 1500.0, 200.0, 500.0, 150.0, 7.5]])
+        prediction = model.predict(test_data)
+        print(f'✅ Test prediction successful: ${prediction[0]:,.2f}')
+    else:
+        print('❌ Model loading test failed - no model loaded')
+        sys.exit(1)
+        
+except Exception as e:
+    print(f'❌ Model loading test failed: {e}')
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
+"
+    
+    if [ $? -eq 0 ]; then
+        log_success "Model loading test passed - API should work correctly!"
+    else
+        log_error "Model loading test failed - API may not work!"
+        exit 1
+    fi
+else
+    log_error "Python not available for model loading test"
+    exit 1
+fi
+
 # Final verification
 log_info "Performing final MLflow verification..."
 if command -v python &> /dev/null; then

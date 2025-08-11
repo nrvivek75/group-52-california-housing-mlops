@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, validator
 import uvicorn
 from prometheus_fastapi_instrumentator import Instrumentator, metrics
 from contextlib import asynccontextmanager
+import asyncio
 
 # Configure logging
 logging.basicConfig(
@@ -36,11 +37,33 @@ async def lifespan(app: FastAPI):
     # Ensure database is initialized
     init_db()
 
-    # Load model
-    model = load_model()
-
-    if model is None:
-        logger.error("Failed to load model on startup")
+    # Load model with retry logic
+    model = None
+    max_retries = 5
+    retry_delay = 10  # seconds
+    
+    for attempt in range(max_retries):
+        try:
+            logger.info(f"Attempting to load model (attempt {attempt + 1}/{max_retries})...")
+            model = load_model()
+            
+            if model is not None:
+                logger.info("Model loaded successfully!")
+                break
+            else:
+                logger.warning(f"Model loading failed on attempt {attempt + 1}")
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying in {retry_delay} seconds...")
+                    await asyncio.sleep(retry_delay)
+                else:
+                    logger.error("Failed to load model after all retry attempts")
+        except Exception as e:
+            logger.error(f"Error loading model on attempt {attempt + 1}: {e}")
+            if attempt < max_retries - 1:
+                logger.info(f"Retrying in {retry_delay} seconds...")
+                await asyncio.sleep(retry_delay)
+            else:
+                logger.error("Failed to load model after all retry attempts")
 
     # Initialize retraining system
     try:
@@ -76,7 +99,39 @@ app.add_middleware(
 )
 
 # Initialize Prometheus metrics
-Instrumentator().instrument(app).expose(app)
+instrumentator = Instrumentator()
+instrumentator.add(
+    metrics.request_size(
+        should_include_handler=True,
+        should_include_method=True,
+        should_include_status=True,
+    )
+)
+instrumentator.add(
+    metrics.response_size(
+        should_include_handler=True,
+        should_include_method=True,
+        should_include_status=True,
+    )
+)
+instrumentator.add(
+    metrics.latency(
+        should_include_handler=True,
+        should_include_method=True,
+        should_include_status=True,
+    )
+)
+
+# Add custom metrics
+from prometheus_client import Counter, Histogram, Gauge
+
+# Custom metrics for MLOps
+prediction_counter = Counter('model_predictions_total', 'Total number of predictions made', ['model_type', 'status'])
+prediction_latency = Histogram('model_prediction_duration_seconds', 'Time spent making predictions', ['model_type'])
+model_accuracy = Gauge('model_rmse', 'Model RMSE score', ['model_type'])
+model_r2_score = Gauge('model_r2_score', 'Model R² score', ['model_type'])
+
+instrumentator.instrument(app).expose(app)
 
 # Initialize retraining system (will be set in startup)
 retraining_system = None
@@ -167,30 +222,83 @@ def init_db():
 
 # Load MLflow model
 def load_model():
-    """Load the registered MLflow model"""
+    """Load the best MLflow model from runs"""
     try:
-        # First try to load from MLflow
-        model = mlflow.pyfunc.load_model(
-            "models:/california_housing_best_model/Production"
-        )
-        logger.info("Model loaded successfully from MLflow")
+        # Set MLflow tracking URI
+        mlflow.set_tracking_uri('file:./mlruns')
+        
+        # Get the experiment
+        experiment = mlflow.get_experiment_by_name('california_housing_experiment')
+        if not experiment:
+            logger.error("MLflow experiment not found")
+            return None
+        
+        # Get the client
+        client = mlflow.tracking.MlflowClient()
+        
+        # Search for runs
+        runs = client.search_runs(experiment_ids=[experiment.experiment_id])
+        if not runs:
+            logger.error("No MLflow runs found")
+            return None
+        
+        # Get the best run (lowest RMSE)
+        best_run = None
+        best_rmse = float('inf')
+        
+        for run in runs:
+            if run.data.metrics.get('rmse'):
+                rmse = run.data.metrics['rmse']
+                if rmse < best_rmse:
+                    best_rmse = rmse
+                    best_run = run
+        
+        if not best_run:
+            logger.error("No run with RMSE metric found")
+            return None
+        
+        logger.info(f"Loading best model from run: {best_run.info.run_name} (RMSE: {best_rmse:.2f})")
+        
+        # Load the model from the run
+        model = mlflow.sklearn.load_model(f"runs:/{best_run.info.run_id}/model")
+        logger.info("Model loaded successfully from MLflow run")
         return model
+        
     except Exception as e:
         logger.error(f"Error loading model from MLflow: {e}")
-        # Try to load from local models directory
+        
+        # Fallback: try to load from local models directory
         try:
             import joblib
-
-            model_path = "models/best_model.pkl"
-            if os.path.exists(model_path):
-                model = joblib.load(model_path)
-                logger.info("Model loaded successfully from local file")
-                return model
-            else:
-                logger.error(f"Local model file not found: {model_path}")
+            
+            # Check for models in the models directory
+            models_dir = "models"
+            if os.path.exists(models_dir):
+                # Look for any .pkl files
+                for file in os.listdir(models_dir):
+                    if file.endswith('.pkl'):
+                        model_path = os.path.join(models_dir, file)
+                        model = joblib.load(model_path)
+                        logger.info(f"Model loaded successfully from local file: {model_path}")
+                        return model
+                
+                # Check for MLflow model directories
+                for item in os.listdir(models_dir):
+                    item_path = os.path.join(models_dir, item)
+                    if os.path.isdir(item_path) and os.path.exists(os.path.join(item_path, 'conda.yaml')):
+                        try:
+                            model = mlflow.sklearn.load_model(item_path)
+                            logger.info(f"Model loaded successfully from local MLflow directory: {item_path}")
+                            return model
+                        except Exception as dir_e:
+                            logger.warning(f"Failed to load from {item_path}: {dir_e}")
+                            continue
+            
+            logger.error("No local model files found")
+            
         except Exception as local_e:
             logger.error(f"Error loading local model: {local_e}")
-
+        
         return None
 
 
@@ -226,6 +334,8 @@ async def predict(request: Request, housing_data: HousingData):
 
     try:
         if model is None:
+            # Increment failed prediction counter
+            prediction_counter.labels(model_type="unknown", status="failed").inc()
             raise HTTPException(
                 status_code=503,
                 detail="Model not available. Please ensure the model is trained and loaded.",
@@ -253,6 +363,11 @@ async def predict(request: Request, housing_data: HousingData):
         # Calculate response time
         response_time = (datetime.now() - start_time).total_seconds()
 
+        # Update custom metrics
+        model_type = type(model).__name__
+        prediction_counter.labels(model_type=model_type, status="success").inc()
+        prediction_latency.labels(model_type=model_type).observe(response_time)
+
         # Log prediction to database
         log_prediction(housing_data.model_dump(), prediction, response_time)
 
@@ -265,10 +380,26 @@ async def predict(request: Request, housing_data: HousingData):
         )
 
     except HTTPException:
+        # Increment failed prediction counter
+        if model is not None:
+            model_type = type(model).__name__
+        else:
+            model_type = "unknown"
+        prediction_counter.labels(model_type=model_type, status="failed").inc()
         raise
     except Exception as e:
+        # Increment failed prediction counter
+        if model is not None:
+            model_type = type(model).__name__
+        else:
+            model_type = "unknown"
+        prediction_counter.labels(model_type=model_type, status="failed").inc()
+        
         logger.error(f"Prediction error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}",
+        )
 
 
 @app.post("/retrain", response_model=Dict[str, str])

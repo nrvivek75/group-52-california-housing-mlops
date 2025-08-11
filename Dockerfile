@@ -42,6 +42,7 @@ COPY configs/ ./configs/
 
 # Copy configuration files
 COPY prometheus.yml ./prometheus.yml
+COPY grafana/conf/ ./grafana/conf/
 COPY grafana/provisioning/dashboards/ ./grafana/provisioning/dashboards/
 COPY grafana/provisioning/datasources/ ./grafana/provisioning/datasources/
 

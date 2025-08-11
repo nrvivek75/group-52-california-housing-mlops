@@ -245,8 +245,11 @@ def load_model():
                     model_path = os.path.join(models_dir, file)
                     try:
                         import joblib
+
                         model = joblib.load(model_path)
-                        logger.info(f"Model loaded successfully from local file: {model_path}")
+                        logger.info(
+                            f"Model loaded successfully from local file: {model_path}"
+                        )
                         return model
                     except Exception as e:
                         logger.warning(f"Failed to load {model_path}: {e}")
@@ -377,7 +380,6 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    global model
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
@@ -388,7 +390,6 @@ async def health_check():
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(request: Request, housing_data: HousingData):
     """Make a housing price prediction"""
-    global model
     start_time = datetime.now()
 
     try:

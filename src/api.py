@@ -143,6 +143,7 @@ def load_model():
         # Try to load from local models directory
         try:
             import joblib
+
             model_path = "models/best_model.pkl"
             if os.path.exists(model_path):
                 model = joblib.load(model_path)
@@ -152,7 +153,7 @@ def load_model():
                 logger.error(f"Local model file not found: {model_path}")
         except Exception as local_e:
             logger.error(f"Error loading local model: {local_e}")
-        
+
         return None
 
 
@@ -167,22 +168,23 @@ init_db()
 async def startup_event():
     global model
     global retraining_system
-    
+
     # Create logs directory if it doesn't exist
     os.makedirs("logs", exist_ok=True)
-    
+
     # Ensure database is initialized
     init_db()
-    
+
     # Load model
     model = load_model()
-    
+
     if model is None:
         logger.error("Failed to load model on startup")
 
     # Initialize retraining system
     try:
         from .retraining import ModelRetrainingSystem
+
         retraining_system = ModelRetrainingSystem()
         logger.info("Retraining system initialized")
     except Exception as e:
@@ -210,14 +212,14 @@ async def health_check():
 async def predict(request: Request, housing_data: HousingData):
     """Make a housing price prediction"""
     start_time = datetime.now()
-    
+
     try:
         if model is None:
             raise HTTPException(
-                status_code=503, 
-                detail="Model not available. Please ensure the model is trained and loaded."
+                status_code=503,
+                detail="Model not available. Please ensure the model is trained and loaded.",
             )
-        
+
         # Convert input to numpy array
         input_features = np.array(
             [
@@ -263,10 +265,12 @@ async def trigger_retraining(request: RetrainingRequest):
     """Trigger model retraining based on various conditions"""
     try:
         if retraining_system is None:
-            raise HTTPException(status_code=503, detail="Retraining system not available")
-            
+            raise HTTPException(
+                status_code=503, detail="Retraining system not available"
+            )
+
         logger.info(f"Retraining triggered: {request.trigger_type}")
-        
+
         # Validate retraining request
         if request.trigger_type not in [
             "performance",
@@ -275,7 +279,7 @@ async def trigger_retraining(request: RetrainingRequest):
             "scheduled",
         ]:
             raise HTTPException(status_code=400, detail="Invalid trigger type")
-        
+
         # Use the retraining system
         if request.trigger_type == "performance":
             result = retraining_system.trigger_retraining("performance", request.force)
@@ -285,24 +289,27 @@ async def trigger_retraining(request: RetrainingRequest):
             result = retraining_system.trigger_retraining("manual", request.force)
         elif request.trigger_type == "scheduled":
             result = retraining_system.schedule_retraining()
-        
+
         return result
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error triggering retraining: {e}")
         raise HTTPException(status_code=500, detail=f"Retraining failed: {str(e)}")
 
+
 @app.get("/model/performance")
 async def get_model_performance():
     """Get current model performance metrics"""
     try:
         if retraining_system is None:
-            raise HTTPException(status_code=503, detail="Retraining system not available")
-            
+            raise HTTPException(
+                status_code=503, detail="Retraining system not available"
+            )
+
         needs_retraining, metrics = retraining_system.check_model_performance()
-        
+
         return {
             "needs_retraining": needs_retraining,
             "performance_metrics": metrics,
@@ -320,15 +327,18 @@ async def get_model_performance():
             status_code=500, detail=f"Failed to get performance: {str(e)}"
         )
 
+
 @app.get("/model/drift")
 async def check_data_drift():
     """Check for data drift"""
     try:
         if retraining_system is None:
-            raise HTTPException(status_code=503, detail="Retraining system not available")
-            
+            raise HTTPException(
+                status_code=503, detail="Retraining system not available"
+            )
+
         needs_retraining, drift_metrics = retraining_system.check_data_drift()
-        
+
         return {
             "needs_retraining": needs_retraining,
             "drift_metrics": drift_metrics,

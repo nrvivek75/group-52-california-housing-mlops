@@ -236,6 +236,41 @@ def init_db():
 def load_model():
     """Load the best MLflow model from runs"""
     try:
+        # First try to load from local models directory (more reliable)
+        models_dir = "models"
+        if os.path.exists(models_dir):
+            # Look for any .pkl files
+            for file in os.listdir(models_dir):
+                if file.endswith(".pkl"):
+                    model_path = os.path.join(models_dir, file)
+                    try:
+                        import joblib
+                        model = joblib.load(model_path)
+                        logger.info(f"Model loaded successfully from local file: {model_path}")
+                        return model
+                    except Exception as e:
+                        logger.warning(f"Failed to load {model_path}: {e}")
+                        continue
+
+            # Check for MLflow model directories
+            for item in os.listdir(models_dir):
+                item_path = os.path.join(models_dir, item)
+                if os.path.isdir(item_path) and os.path.exists(
+                    os.path.join(item_path, "conda.yaml")
+                ):
+                    try:
+                        model = mlflow.sklearn.load_model(item_path)
+                        logger.info(
+                            f"Model loaded successfully from local MLflow directory: {item_path}"
+                        )
+                        return model
+                    except Exception as dir_e:
+                        logger.warning(f"Failed to load from {item_path}: {dir_e}")
+                        continue
+
+        # Fallback: try to load from MLflow runs
+        logger.info("Local models not found, trying MLflow runs...")
+
         # Set MLflow tracking URI
         mlflow.set_tracking_uri("file:./mlruns")
 
@@ -310,52 +345,17 @@ def load_model():
             f"Loading best model from run: {best_run.info.run_name} (RMSE: {best_rmse:.2f})"
         )
 
-        # Load the model from the run
-        model = mlflow.sklearn.load_model(f"runs:/{best_run.info.run_id}/model")
-        logger.info("Model loaded successfully from MLflow run")
-        return model
+        # Try to load the model from the run
+        try:
+            model = mlflow.sklearn.load_model(f"runs:/{best_run.info.run_id}/model")
+            logger.info("Model loaded successfully from MLflow run")
+            return model
+        except Exception as mlflow_e:
+            logger.warning(f"Failed to load from MLflow run: {mlflow_e}")
+            return None
 
     except Exception as e:
-        logger.error(f"Error loading model from MLflow: {e}")
-
-        # Fallback: try to load from local models directory
-        try:
-            import joblib
-
-            # Check for models in the models directory
-            models_dir = "models"
-            if os.path.exists(models_dir):
-                # Look for any .pkl files
-                for file in os.listdir(models_dir):
-                    if file.endswith(".pkl"):
-                        model_path = os.path.join(models_dir, file)
-                        model = joblib.load(model_path)
-                        logger.info(
-                            f"Model loaded successfully from local file: {model_path}"
-                        )
-                        return model
-
-                # Check for MLflow model directories
-                for item in os.listdir(models_dir):
-                    item_path = os.path.join(models_dir, item)
-                    if os.path.isdir(item_path) and os.path.exists(
-                        os.path.join(item_path, "conda.yaml")
-                    ):
-                        try:
-                            model = mlflow.sklearn.load_model(item_path)
-                            logger.info(
-                                f"Model loaded successfully from local MLflow directory: {item_path}"
-                            )
-                            return model
-                        except Exception as dir_e:
-                            logger.warning(f"Failed to load from {item_path}: {dir_e}")
-                            continue
-
-            logger.error("No local model files found")
-
-        except Exception as local_e:
-            logger.error(f"Error loading local model: {local_e}")
-
+        logger.error(f"Error loading model: {e}")
         return None
 
 
@@ -377,6 +377,7 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
+    global model
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
@@ -387,6 +388,7 @@ async def health_check():
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(request: Request, housing_data: HousingData):
     """Make a housing price prediction"""
+    global model
     start_time = datetime.now()
 
     try:

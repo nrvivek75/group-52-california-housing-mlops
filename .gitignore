@@ -8,7 +8,7 @@ dist/
 build/
 .env
 .venv/
-
+prometheus-2.47.0.darwin-amd64.tar.gz
 # Specific data files (not patterns that catch .dvc files)
 data/raw/california_housing.csv
 data/processed/*.npy

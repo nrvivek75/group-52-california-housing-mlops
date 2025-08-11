@@ -175,14 +175,22 @@ class HousingData(BaseModel):
     @field_validator("total_bedrooms")
     @classmethod
     def validate_bedrooms(cls, v, info):
-        if hasattr(info, 'data') and 'total_rooms' in info.data and v > info.data['total_rooms']:
+        if (
+            hasattr(info, "data")
+            and "total_rooms" in info.data
+            and v > info.data["total_rooms"]
+        ):
             raise ValueError("Total bedrooms cannot exceed total rooms")
         return v
 
     @field_validator("households")
     @classmethod
     def validate_households(cls, v, info):
-        if hasattr(info, 'data') and 'population' in info.data and v > info.data['population']:
+        if (
+            hasattr(info, "data")
+            and "population" in info.data
+            and v > info.data["population"]
+        ):
             raise ValueError("Households cannot exceed population")
         return v
 

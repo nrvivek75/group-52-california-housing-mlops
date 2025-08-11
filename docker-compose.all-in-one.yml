@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  mlops-all-in-one:
+    build:
+      context: .
+      dockerfile: Dockerfile.all-in-one
+    container_name: mlops-all-in-one
+    ports:
+      - "8001:8001"  # FastAPI API
+      - "5002:5002"  # MLflow UI
+      - "9090:9090"  # Prometheus
+      - "3000:3000"  # Grafana
+    volumes:
+      - ./logs:/app/logs
+      - ./mlruns:/app/mlruns
+      - ./models:/app/models
+      - ./data:/app/data
+    environment:
+      - PYTHONPATH=/app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s 

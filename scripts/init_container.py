@@ -84,7 +84,13 @@ def train_models():
             log_error("Training script not found")
             return False
         
-        # Run training script
+        # Check if we have the config file
+        config_file = Path("/app/configs/config.yaml")
+        if not config_file.exists():
+            log_error("Config file not found")
+            return False
+        
+        # Run training script with verbose output
         log_info("Starting model training...")
         result = subprocess.run(
             ["python", "scripts/train_models.py"],
@@ -96,9 +102,12 @@ def train_models():
         
         if result.returncode == 0:
             log_success("Models trained successfully")
+            log_info(f"Training output: {result.stdout}")
             return True
         else:
-            log_error(f"Training failed: {result.stderr}")
+            log_error(f"Training failed with return code {result.returncode}")
+            log_error(f"Training stderr: {result.stderr}")
+            log_error(f"Training stdout: {result.stdout}")
             return False
             
     except subprocess.TimeoutExpired:
@@ -106,6 +115,134 @@ def train_models():
         return False
     except Exception as e:
         log_error(f"Training failed: {e}")
+        return False
+
+def create_comprehensive_mlflow_runs():
+    """Create comprehensive MLflow runs with multiple models"""
+    log_info("Creating comprehensive MLflow runs...")
+    
+    try:
+        import mlflow
+        from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+        from sklearn.linear_model import LinearRegression, Ridge, Lasso
+        from sklearn.tree import DecisionTreeRegressor
+        from sklearn.model_selection import train_test_split
+        from sklearn.metrics import mean_squared_error, r2_score
+        from sklearn.preprocessing import StandardScaler
+        import pandas as pd
+        import numpy as np
+        
+        # Set tracking URI
+        mlflow.set_tracking_uri('file:./mlruns')
+        mlflow.set_experiment('california_housing_experiment')
+        
+        # Load or create data
+        data_file = Path("/app/data/raw/california_housing.csv")
+        if data_file.exists():
+            data = pd.read_csv(data_file)
+        else:
+            log_warning("No data file found, creating sample runs with synthetic data")
+            return False
+        
+        # Prepare features and target
+        feature_cols = ['longitude', 'latitude', 'housing_median_age', 'total_rooms', 
+                       'total_bedrooms', 'population', 'households', 'median_income']
+        X = data[feature_cols].values
+        y = data['median_house_value'].values
+        
+        # Split data
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        
+        # Scale features
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
+        
+        # Define models with different hyperparameters
+        models = [
+            ("LinearRegression", LinearRegression(), {}),
+            ("Ridge_alpha_0.1", Ridge(alpha=0.1), {"alpha": 0.1}),
+            ("Ridge_alpha_1.0", Ridge(alpha=1.0), {"alpha": 1.0}),
+            ("Lasso_alpha_0.1", Lasso(alpha=0.1), {"alpha": 0.1}),
+            ("Lasso_alpha_1.0", Lasso(alpha=1.0), {"alpha": 1.0}),
+            ("RandomForest_100", RandomForestRegressor(n_estimators=100, random_state=42), {"n_estimators": 100}),
+            ("RandomForest_200", RandomForestRegressor(n_estimators=200, random_state=42), {"n_estimators": 200}),
+            ("RandomForest_300", RandomForestRegressor(n_estimators=300, random_state=42), {"n_estimators": 300}),
+            ("DecisionTree", DecisionTreeRegressor(random_state=42), {"random_state": 42}),
+            ("GradientBoosting", GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, random_state=42), {"n_estimators": 100, "learning_rate": 0.1})
+        ]
+        
+        for model_name, model, params in models:
+            with mlflow.start_run(run_name=model_name):
+                # Log parameters
+                for key, value in params.items():
+                    mlflow.log_param(key, value)
+                
+                # Train model
+                if "Linear" in model_name or "Ridge" in model_name or "Lasso" in model_name:
+                    model.fit(X_train_scaled, y_train)
+                    y_pred = model.predict(X_test_scaled)
+                else:
+                    model.fit(X_train, y_train)
+                    y_pred = model.predict(X_test)
+                
+                # Calculate metrics
+                mse = mean_squared_error(y_test, y_pred)
+                rmse = np.sqrt(mse)
+                r2 = r2_score(y_test, y_pred)
+                
+                # Log metrics
+                mlflow.log_metric("mse", mse)
+                mlflow.log_metric("rmse", rmse)
+                mlflow.log_metric("r2", r2)
+                
+                # Log model
+                mlflow.sklearn.log_model(model, "model")
+                
+                log_info(f"Created MLflow run: {model_name} (RMSE: {rmse:.2f}, R²: {r2:.3f})")
+        
+        log_success(f"Created {len(models)} comprehensive MLflow runs")
+        return True
+        
+    except Exception as e:
+        log_error(f"Failed to create comprehensive MLflow runs: {e}")
+        return False
+
+def fix_grafana_dashboards():
+    """Fix Grafana dashboard provisioning"""
+    log_info("Fixing Grafana dashboard provisioning...")
+    
+    try:
+        # Check if dashboard files exist
+        dashboard_dir = Path("/app/grafana/provisioning/dashboards")
+        if not dashboard_dir.exists():
+            log_error("Grafana dashboard directory not found")
+            return False
+        
+        # List dashboard files
+        dashboard_files = list(dashboard_dir.glob("*.json"))
+        log_info(f"Found {len(dashboard_files)} dashboard files: {[f.name for f in dashboard_files]}")
+        
+        # Check if dashboard.yml exists and is correct
+        dashboard_yml = dashboard_dir / "dashboard.yml"
+        if dashboard_yml.exists():
+            log_info("Dashboard provisioning file exists")
+            with open(dashboard_yml, 'r') as f:
+                content = f.read()
+                log_info(f"Dashboard.yml content: {content}")
+        else:
+            log_error("Dashboard provisioning file not found")
+        
+        # Check datasource configuration
+        datasource_dir = Path("/app/grafana/provisioning/datasources")
+        if datasource_dir.exists():
+            datasource_files = list(datasource_dir.glob("*.yml"))
+            log_info(f"Found {len(datasource_files)} datasource files: {[f.name for f in datasource_files]}")
+        
+        return True
+        
+    except Exception as e:
+        log_error(f"Failed to fix Grafana dashboards: {e}")
         return False
 
 def initialize_mlflow():
@@ -139,78 +276,6 @@ def initialize_mlflow():
         log_error(f"MLflow initialization failed: {e}")
         return False
 
-def create_sample_mlflow_runs():
-    """Create sample MLflow runs if none exist"""
-    log_info("Checking for MLflow runs...")
-    
-    try:
-        import mlflow
-        from sklearn.ensemble import RandomForestRegressor
-        from sklearn.model_selection import train_test_split
-        from sklearn.metrics import mean_squared_error
-        import pandas as pd
-        import numpy as np
-        
-        # Set tracking URI
-        mlflow.set_tracking_uri('file:./mlruns')
-        mlflow.set_experiment('california_housing_experiment')
-        
-        # Load or create data
-        data_file = Path("/app/data/raw/california_housing.csv")
-        if data_file.exists():
-            data = pd.read_csv(data_file)
-        else:
-            log_warning("No data file found, creating sample runs with synthetic data")
-            return False
-        
-        # Prepare features and target
-        feature_cols = ['longitude', 'latitude', 'housing_median_age', 'total_rooms', 
-                       'total_bedrooms', 'population', 'households', 'median_income']
-        X = data[feature_cols].values
-        y = data['median_house_value'].values
-        
-        # Split data
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-        
-        # Create multiple runs with different models
-        models = [
-            ("RandomForest", RandomForestRegressor(n_estimators=100, random_state=42)),
-            ("RandomForest_200", RandomForestRegressor(n_estimators=200, random_state=42)),
-            ("RandomForest_300", RandomForestRegressor(n_estimators=300, random_state=42))
-        ]
-        
-        for model_name, model in models:
-            with mlflow.start_run(run_name=model_name):
-                # Log parameters
-                mlflow.log_param("n_estimators", model.n_estimators)
-                mlflow.log_param("random_state", model.random_state)
-                
-                # Train model
-                model.fit(X_train, y_train)
-                
-                # Make predictions
-                y_pred = model.predict(X_test)
-                
-                # Calculate metrics
-                mse = mean_squared_error(y_test, y_pred)
-                rmse = np.sqrt(mse)
-                
-                # Log metrics
-                mlflow.log_metric("mse", mse)
-                mlflow.log_metric("rmse", rmse)
-                
-                # Log model
-                mlflow.sklearn.log_model(model, "model")
-                
-                log_info(f"Created MLflow run: {model_name} (RMSE: {rmse:.2f})")
-        
-        log_success(f"Created {len(models)} sample MLflow runs")
-        return True
-        
-    except Exception as e:
-        log_error(f"Failed to create sample MLflow runs: {e}")
-        return False
-
 def main():
     """Main initialization function"""
     log_info("Starting container initialization...")
@@ -225,11 +290,14 @@ def main():
         
         # Try to train models first
         if not train_models():
-            log_warning("Model training failed, creating sample runs instead")
-            create_sample_mlflow_runs()
+            log_warning("Model training failed, creating comprehensive runs instead")
+            create_comprehensive_mlflow_runs()
         
         # Initialize MLflow
         initialize_mlflow()
+        
+        # Fix Grafana dashboards
+        fix_grafana_dashboards()
         
         log_success("Container initialization completed successfully!")
         

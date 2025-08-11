@@ -38,6 +38,7 @@ COPY models/ ./models/
 COPY mlruns/ ./mlruns/
 COPY data/ ./data/
 COPY scripts/ ./scripts/
+COPY configs/ ./configs/
 
 # Copy configuration files
 COPY prometheus.yml ./prometheus.yml

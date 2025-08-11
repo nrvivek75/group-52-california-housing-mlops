@@ -43,11 +43,11 @@ fi
 
 # Step 2: Wait for services to start
 log_info "Waiting for services to start..."
-sleep 10
+sleep 15
 
 # Step 3: Test API health and trigger model loading
 log_info "Testing API health and triggering model loading..."
-for i in {1..3}; do
+for i in {1..5}; do
     if curl -s "http://localhost:8001/health" > /dev/null; then
         log_success "API is responding"
         
@@ -66,16 +66,24 @@ done
 
 # Step 4: Generate some initial metrics
 log_info "Generating initial metrics..."
-for i in {1..5}; do
+for i in {1..10}; do
     curl -s "http://localhost:8001/health" > /dev/null 2>&1 || true
     curl -s "http://localhost:8001/metrics" > /dev/null 2>&1 || true
     sleep 1
 done
 
-# Step 5: Check MLflow status
-log_info "Checking MLflow status..."
+# Step 5: Check MLflow status and runs
+log_info "Checking MLflow status and runs..."
 if curl -s "http://localhost:5002" > /dev/null; then
     log_success "MLflow UI is accessible"
+    
+    # Check if we have MLflow runs
+    if [ -d "/app/mlruns" ] && [ "$(ls -A /app/mlruns)" ]; then
+        log_success "MLflow data directory contains runs"
+        ls -la /app/mlruns/
+    else
+        log_warning "MLflow data directory is empty"
+    fi
 else
     log_warning "MLflow UI not accessible yet"
 fi
@@ -94,6 +102,25 @@ if curl -s "http://localhost:9090/api/v1/targets" > /dev/null; then
     log_success "Prometheus is accessible"
 else
     log_warning "Prometheus not accessible yet"
+fi
+
+# Step 8: Verify models directory
+log_info "Checking models directory..."
+if [ -d "/app/models" ] && [ "$(ls -A /app/models)" ]; then
+    log_success "Models directory contains files"
+    ls -la /app/models/
+else
+    log_warning "Models directory is empty"
+fi
+
+# Step 9: Run verification script
+log_info "Running verification script..."
+python scripts/verify_setup.py
+
+if [ $? -eq 0 ]; then
+    log_success "Verification completed successfully"
+else
+    log_warning "Verification found some issues"
 fi
 
 log_success "MLOps Container Initialization Complete!"

@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  california-housing-api:
+    build: .
+    container_name: california-housing-api
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./logs:/app/logs
+      - ./mlruns:/app/mlruns
+      - ./data:/app/data
+      - ./models:/app/models
+    environment:
+      - MLFLOW_TRACKING_URI=file:/app/mlruns
+      - PYTHONPATH=/app
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - mlops-network
+
+  # MLflow UI for experiment tracking
+  mlflow-ui:
+    image: python:3.9-slim
+    container_name: mlflow-ui
+    ports:
+      - "5002:5000"  # Changed from 5000:5000 to avoid conflicts
+    volumes:
+      - ./mlruns:/mlflow/mlruns
+      - ./mlruns.db:/mlflow/mlruns.db
+    environment:
+      - MLFLOW_TRACKING_URI=file:/mlflow/mlruns
+    command: >
+      bash -c "pip install mlflow && 
+               mlflow ui --backend-store-uri sqlite:///mlflow/mlruns.db 
+               --default-artifact-root /mlflow/mlruns 
+               --host 0.0.0.0 --port 5000"
+    restart: unless-stopped
+    networks:
+      - mlops-network
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    networks:
+      - mlops-network
+
+  # Grafana for dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana-dashboard.json:/etc/grafana/provisioning/dashboards/dashboard.json
+    restart: unless-stopped
+    networks:
+      - mlops-network
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  mlops-network:
+    driver: bridge 

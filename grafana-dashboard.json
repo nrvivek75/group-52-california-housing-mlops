@@ -1,0 +1,161 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "California Housing MLOps Dashboard",
+    "tags": ["mlops", "fastapi", "mlflow"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "API Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total{job=\"california-housing-api\"}[5m])",
+            "legendFormat": "{{method}} {{route}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "yAxes": [
+          {
+            "label": "Requests per second",
+            "min": 0
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "API Response Time",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=\"california-housing-api\"}[5m]))",
+            "legendFormat": "95th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{job=\"california-housing-api\"}[5m]))",
+            "legendFormat": "50th percentile"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "yAxes": [
+          {
+            "label": "Response time (seconds)",
+            "min": 0
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Prediction Endpoint Usage",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(http_requests_total{job=\"california-housing-api\", route=\"/predict\"})",
+            "legendFormat": "Total Predictions"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "red", "value": 1000}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Model Performance",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "california_housing_prediction_duration_seconds",
+            "legendFormat": "Prediction Duration"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+        "yAxes": [
+          {
+            "label": "Duration (seconds)",
+            "min": 0
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Database Operations",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(sqlite_operations_total{job=\"california-housing-api\"})",
+            "legendFormat": "Total DB Operations"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 100},
+                {"color": "red", "value": 1000}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total{job=\"california-housing-api\", status=~\"4..|5..\"}[5m])",
+            "legendFormat": "Error Rate"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+        "yAxes": [
+          {
+            "label": "Errors per second",
+            "min": 0
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "System Resources",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "process_cpu_seconds_total{job=\"california-housing-api\"}",
+            "legendFormat": "CPU Usage"
+          },
+          {
+            "expr": "process_resident_memory_bytes{job=\"california-housing-api\"}",
+            "legendFormat": "Memory Usage"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 20},
+        "yAxes": [
+          {
+            "label": "Resource Usage",
+            "min": 0
+          }
+        ]
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "10s"
+  }
+} 

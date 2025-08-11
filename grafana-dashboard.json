@@ -13,7 +13,7 @@
         "targets": [
           {
             "expr": "rate(http_requests_total{job=\"california-housing-api\"}[5m])",
-            "legendFormat": "{{method}} {{route}}"
+            "legendFormat": "{{method}} {{handler}}"
           }
         ],
         "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
@@ -48,11 +48,11 @@
       },
       {
         "id": 3,
-        "title": "Prediction Endpoint Usage",
+        "title": "Total Predictions",
         "type": "stat",
         "targets": [
           {
-            "expr": "sum(http_requests_total{job=\"california-housing-api\", route=\"/predict\"})",
+            "expr": "sum(http_requests_total{job=\"california-housing-api\", handler=\"/predict\"})",
             "legendFormat": "Total Predictions"
           }
         ],
@@ -71,30 +71,12 @@
       },
       {
         "id": 4,
-        "title": "Model Performance",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "california_housing_prediction_duration_seconds",
-            "legendFormat": "Prediction Duration"
-          }
-        ],
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
-        "yAxes": [
-          {
-            "label": "Duration (seconds)",
-            "min": 0
-          }
-        ]
-      },
-      {
-        "id": 5,
-        "title": "Database Operations",
+        "title": "Health Check Requests",
         "type": "stat",
         "targets": [
           {
-            "expr": "sum(sqlite_operations_total{job=\"california-housing-api\"})",
-            "legendFormat": "Total DB Operations"
+            "expr": "sum(http_requests_total{job=\"california-housing-api\", handler=\"/health\"})",
+            "legendFormat": "Health Checks"
           }
         ],
         "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8},
@@ -112,7 +94,7 @@
         }
       },
       {
-        "id": 6,
+        "id": 5,
         "title": "Error Rate",
         "type": "graph",
         "targets": [
@@ -121,32 +103,10 @@
             "legendFormat": "Error Rate"
           }
         ],
-        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
         "yAxes": [
           {
             "label": "Errors per second",
-            "min": 0
-          }
-        ]
-      },
-      {
-        "id": 7,
-        "title": "System Resources",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "process_cpu_seconds_total{job=\"california-housing-api\"}",
-            "legendFormat": "CPU Usage"
-          },
-          {
-            "expr": "process_resident_memory_bytes{job=\"california-housing-api\"}",
-            "legendFormat": "Memory Usage"
-          }
-        ],
-        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 20},
-        "yAxes": [
-          {
-            "label": "Resource Usage",
             "min": 0
           }
         ]

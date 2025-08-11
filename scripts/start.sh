@@ -52,7 +52,7 @@ cleanup_container() {
 
 build_image() {
     log_info "Building all-in-one MLOps Docker image..."
-    docker build -f Dockerfile.all-in-one -t mlops-all-in-one:latest .
+    docker build -f Dockerfile -t mlops-all-in-one:latest .
     
     if [ $? -eq 0 ]; then
         log_success "Image built successfully!"
@@ -142,21 +142,21 @@ wait_for_services() {
 }
 
 show_status() {
-    log_success "🎉 All-in-One MLOps Stack is Running!"
+    log_success "All-in-One MLOps Stack is Running!"
     echo
-    echo "📊 Services Status:"
-    echo "  ✅ FastAPI API:     http://localhost:8001"
-    echo "  ✅ MLflow UI:       http://localhost:5002"
-    echo "  ✅ Prometheus:      http://localhost:9090"
-    echo "  ✅ Grafana:         http://localhost:3000 (admin/admin)"
+    echo "Services Status:"
+    echo "  FastAPI API:     http://localhost:8001"
+    echo "  MLflow UI:       http://localhost:5002"
+    echo "  Prometheus:      http://localhost:9090"
+    echo "  Grafana:         http://localhost:3000 (admin/admin)"
     echo
-    echo "🔗 Quick Links:"
-    echo "  📈 API Docs:        http://localhost:8001/docs"
-    echo "  🧪 MLflow:          http://localhost:5002"
-    echo "  📊 Prometheus:      http://localhost:9090"
-    echo "  📈 Grafana:         http://localhost:3000"
+    echo "Quick Links:"
+    echo "  API Docs:        http://localhost:8001/docs"
+    echo "  MLflow:          http://localhost:5002"
+    echo "  Prometheus:      http://localhost:9090"
+    echo "  Grafana:         http://localhost:3000"
     echo
-    echo "📝 Commands:"
+    echo "Commands:"
     echo "  View logs:          docker logs -f mlops-all-in-one"
     echo "  Stop:               docker stop mlops-all-in-one"
     echo "  Remove:             docker rm mlops-all-in-one"

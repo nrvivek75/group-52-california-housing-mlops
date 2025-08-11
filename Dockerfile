@@ -1,39 +1,58 @@
-# Use Python 3.9 slim image
-FROM python:3.9-slim
+# Multi-Service MLOps Docker Image
+# This image contains: FastAPI API, MLflow, Prometheus, and Grafana
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    supervisor \
+    sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV MLFLOW_TRACKING_URI=file:/app/mlruns
-
-# Install system dependencies including curl for health checks
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements first for better caching
+# Copy requirements and install Python dependencies
 COPY requirements.txt .
-
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the entire project
-COPY . .
+# Download Prometheus
+RUN wget https://github.com/prometheus/prometheus/releases/download/v2.47.0/prometheus-2.47.0.linux-amd64.tar.gz \
+    && tar -xzf prometheus-2.47.0.linux-amd64.tar.gz \
+    && mv prometheus-2.47.0.linux-amd64/prometheus /usr/local/bin/ \
+    && rm -rf prometheus-2.47.0.linux-amd64*
+
+# Download Grafana
+RUN wget https://dl.grafana.com/oss/release/grafana-10.0.3.linux-amd64.tar.gz \
+    && tar -xzf grafana-10.0.3.linux-amd64.tar.gz \
+    && mv grafana-10.0.3 /usr/local/grafana \
+    && rm grafana-10.0.3.linux-amd64.tar.gz
+
+# Copy application code
+COPY src/ ./src/
+COPY models/ ./models/
+COPY mlruns/ ./mlruns/
+COPY data/ ./data/
 
 # Create necessary directories
-RUN mkdir -p logs mlruns models
+RUN mkdir -p logs grafana/provisioning/dashboards grafana/provisioning/datasources
 
-# Expose port
-EXPOSE 8001
+# Copy configuration files
+COPY prometheus.yml ./prometheus.yml
+COPY grafana-dashboard.json ./grafana/provisioning/dashboards/
+COPY grafana/provisioning/dashboards/dashboard.yml ./grafana/provisioning/dashboards/
+COPY grafana/provisioning/datasources/datasource.yml ./grafana/provisioning/datasources/
+
+# Copy supervisor configuration
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Expose ports
+EXPOSE 8001 5002 9090 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8001/health || exit 1
 
-# Run the application
-CMD ["python", "src/api.py"] 
+# Start supervisor
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"] 

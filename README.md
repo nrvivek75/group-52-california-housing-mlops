@@ -1,316 +1,286 @@
 # California Housing MLOps Project
 
-A comprehensive MLOps project demonstrating end-to-end machine learning pipeline for California Housing price prediction, including model training, API deployment, containerization, CI/CD, and monitoring.
+A comprehensive MLOps pipeline for California Housing Price Prediction, featuring model training, experiment tracking, API deployment, monitoring, and automated CI/CD.
 
-## 🏗️ Project Structure
+## Project Structure
 
 ```
-├── src/
-│   ├── api.py                 # FastAPI application with prediction endpoints
-│   ├── models/                # Model implementations and training
-│   ├── utils/                 # Configuration and MLflow utilities
-│   └── data/                  # Data preprocessing modules
-├── configs/
-│   └── config.yaml           # Configuration file for models and MLflow
-├── scripts/
-│   ├── train_models.py       # Model training script
-│   └── deploy.sh             # Deployment script
-├── tests/
-│   └── test_api.py           # API tests
-├── logs/                     # Log files and SQLite database
-├── models/                   # Trained models
-├── mlruns/                   # MLflow experiment tracking
-├── Dockerfile                # Docker configuration
-├── docker-compose.yml        # Docker Compose for local development
-├── .github/workflows/        # GitHub Actions CI/CD
-└── requirements.txt          # Python dependencies
+group-52-california-housing-mlops/
+├── src/                    # Source code
+│   ├── api.py             # FastAPI application
+│   ├── models.py          # ML model definitions
+│   ├── data_processing.py # Data preprocessing
+│   └── retraining.py      # Model retraining system
+├── tests/                  # Unit tests
+├── configs/                # Configuration files
+├── scripts/                # Utility scripts
+├── logs/                   # Application logs
+├── models/                 # Trained models
+├── mlruns/                 # MLflow experiment tracking
+├── data/                   # Dataset files
+├── .github/workflows/      # CI/CD pipelines
+├── Dockerfile              # Docker configuration
+├── docker-compose.yml      # Multi-service orchestration
+└── requirements.txt        # Python dependencies
 ```
 
-## 🚀 Features
+## Features
 
-### Part 2: Model Development & Experiment Tracking
-- ✅ **Multiple Models**: Linear Regression, Ridge, Lasso, Random Forest, Decision Tree, Gradient Boosting
-- ✅ **MLflow Integration**: Complete experiment tracking with parameters, metrics, and model registry
-- ✅ **Hyperparameter Tuning**: Grid search with cross-validation
-- ✅ **Model Selection**: Automatic best model selection and registration
+### Model Development & Experiment Tracking
+- **Multiple Models**: Linear Regression, Ridge, Lasso, Random Forest, Decision Tree, Gradient Boosting
+- **MLflow Integration**: Complete experiment tracking with parameters, metrics, and model registry
+- **Hyperparameter Tuning**: Grid search with cross-validation
+- **Model Selection**: Automatic best model selection and registration
 
-### Part 3: API & Docker Packaging
-- ✅ **FastAPI Application**: RESTful API with prediction endpoints
-- ✅ **Docker Containerization**: Complete containerization with health checks
-- ✅ **JSON Input/Output**: Structured data validation and response formatting
+### API & Deployment
+- **FastAPI Application**: RESTful API with prediction endpoints
+- **Docker Containerization**: Complete containerization with health checks
+- **JSON Input/Output**: Structured data validation and response formatting
 
-### Part 4: CI/CD with GitHub Actions
-- ✅ **Automated Testing**: Linting, formatting, and unit tests
-- ✅ **Docker Build & Push**: Automated Docker image building and pushing to Docker Hub
-- ✅ **Deployment**: Automatically deploys to EC2 with health checks
+### CI/CD Pipeline
+- **Automated Testing**: Linting, formatting, and unit tests
+- **Docker Build & Push**: Automated Docker image building and pushing to Docker Hub
+- **Deployment**: Local deployment with health checks
 
-### Part 5: Logging and Monitoring
-- ✅ **Comprehensive Logging**: File and console logging with structured format
-- ✅ **SQLite Database**: Persistent storage of prediction requests and responses
-- ✅ **Metrics Endpoint**: Real-time API metrics and statistics
-- ✅ **Health Monitoring**: Health check endpoints and container health checks
+### Monitoring & Logging
+- **Comprehensive Logging**: File and console logging with structured format
+- **SQLite Database**: Persistent storage of prediction requests and responses
+- **Metrics Endpoint**: Real-time API metrics and statistics
+- **Health Monitoring**: Health check endpoints and container health checks
 
-## 🛠️ Prerequisites
+## Prerequisites
 
-- Python 3.9+
+- Python 3.11+
 - Docker and Docker Compose
 - Git
-- Access to Docker Hub (for CI/CD)
+- MLflow
+- FastAPI
+- Scikit-learn
+- Pandas
+- NumPy
 
-## 📦 Installation
+## Installation
 
-### 1. Clone the Repository
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/group-52-california-housing-mlops.git
+   cd group-52-california-housing-mlops
+   ```
+
+2. **Create virtual environment**
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   ```
+
+3. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Setup environment**
+   ```bash
+   make setup-env
+   ```
+
+## Quick Start
+
+### Option 1: All-in-One Docker Image (Recommended)
 ```bash
-git clone <your-repo-url>
-cd group-52-california-housing-mlops
+# Build and start all services
+./scripts/start.sh start
+
+# Access your services
+# API: http://localhost:8001
+# MLflow: http://localhost:5002
+# Prometheus: http://localhost:9090
+# Grafana: http://localhost:3000 (admin/admin)
 ```
 
-### 2. Install Dependencies
+### Option 2: Individual Services
 ```bash
-pip install -r requirements.txt
+# Start enhanced MLOps stack
+make start-enhanced
+
+# This will show you commands to run in separate terminals
 ```
 
-### 3. Setup Environment
-```bash
-# Create necessary directories
-mkdir -p logs models mlruns data/raw data/processed
-
-# Download California Housing dataset (if not already present)
-# Place california_housing.csv in data/raw/ directory
-```
-
-## 🚀 Quick Start
-
-### Option 1: Local Development
-```bash
-# Train models
-python scripts/train_models.py
-
-# Run API locally
-python src/api.py
-```
-
-### Option 2: Docker (Recommended)
-```bash
-# Build and run with Docker Compose
-docker-compose up --build
-
-# Or use the deployment script
-chmod +x scripts/deploy.sh
-./scripts/deploy.sh local
-```
-
-## 🔧 Usage
-
-### API Endpoints
-
-#### Health Check
-```bash
-curl http://localhost:8000/health
-```
-
-#### Make Prediction
-```bash
-curl -X POST "http://localhost:8000/predict" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "longitude": -122.23,
-       "latitude": 37.88,
-       "housing_median_age": 41.0,
-       "total_rooms": 880.0,
-       "total_bedrooms": 129.0,
-       "population": 322.0,
-       "households": 126.0,
-       "median_income": 8.3252
-     }'
-```
-
-#### Get Metrics
-```bash
-curl http://localhost:8000/metrics
-```
-
-#### Get Logs
-```bash
-curl http://localhost:8000/logs?limit=10
-```
-
-### Model Training
-
-```bash
-# Train all models and register best one
-python scripts/train_models.py
-
-# View MLflow UI (if using docker-compose)
-open http://localhost:5000
-```
-
-### Deployment
-
-```bash
-# Local deployment
-./scripts/deploy.sh local
-
-# Remote deployment (from Docker Hub)
-./scripts/deploy.sh remote your-dockerhub-username
-
-# Check status
-./scripts/deploy.sh status
-
-# View logs
-./scripts/deploy.sh logs
-
-# Stop deployment
-./scripts/deploy.sh stop
-```
-
-## 🧪 Testing
-
-```bash
-# Run all tests
-pytest tests/ -v
-
-# Run with coverage
-pytest tests/ -v --cov=src --cov-report=html
-
-# Run specific test file
-pytest tests/test_api.py -v
-```
-
-## 🔄 CI/CD Pipeline
-
-The GitHub Actions workflow automatically:
-
-1. **Lints and Tests**: Runs flake8, black, and pytest on every push/PR
-2. **Builds Docker Image**: Creates and pushes Docker image to Docker Hub
-3. **Deploys**: Automatically deploys to EC2 instance
-
-### Required Secrets
-Set these in your GitHub repository secrets:
-- `DOCKER_USERNAME`: Your Docker Hub username
-- `DOCKER_PASSWORD`: Your Docker Hub password/token
-
-## 📊 Monitoring
-
-### Logs
-- **API Logs**: `logs/api.log`
-- **Training Logs**: `logs/training.log`
-- **Database**: `logs/predictions.db` (SQLite)
-
-### Metrics
-- Total predictions made
-- Average response time
-- Recent predictions (24h)
-- Model status
-
-### MLflow Tracking
-- Experiment tracking at `http://localhost:5000` (when using docker-compose)
-- Model registry and versioning
-- Parameter and metric logging
-
-## 🐳 Docker
-
-### Build Image
-```bash
-docker build -t california-housing-mlops .
-```
-
-### Run Container
-```bash
-docker run -d \
-  --name california-housing-api \
-  -p 8000:8000 \
-  -v $(pwd)/logs:/app/logs \
-  -v $(pwd)/mlruns:/app/mlruns \
-  california-housing-mlops
-```
-
-### Docker Compose
+### Option 3: Docker Compose
 ```bash
 # Start all services
 docker-compose up -d
 
 # View logs
 docker-compose logs -f
-
-# Stop services
-docker-compose down
 ```
 
-## 🔍 Troubleshooting
+## Usage
+
+### Training Models
+```bash
+# Train all models and register best one
+make train
+
+# Or run directly
+python scripts/train_models.py
+```
+
+### API Endpoints
+- **Health Check**: `GET /health`
+- **Prediction**: `POST /predict`
+- **Metrics**: `GET /metrics`
+- **Logs**: `GET /logs`
+- **Model Performance**: `GET /model/performance`
+- **Data Drift**: `GET /model/drift`
+- **Retraining**: `POST /retrain`
+
+### Example Prediction Request
+```bash
+curl -X POST "http://localhost:8001/predict" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "longitude": -118.25,
+       "latitude": 34.05,
+       "housing_median_age": 35.0,
+       "total_rooms": 1500.0,
+       "total_bedrooms": 200.0,
+       "population": 500.0,
+       "households": 150.0,
+       "median_income": 7.5
+     }'
+```
+
+## Testing
+
+### Run All Tests
+```bash
+make test
+```
+
+### Run Specific Tests
+```bash
+# Test API endpoints
+./scripts/test-api.sh all
+
+# Test specific endpoint
+./scripts/test-api.sh prediction
+```
+
+### Code Quality
+```bash
+# Linting
+make lint
+
+# Formatting
+make format
+
+# All checks
+make check-env
+```
+
+## CI/CD Pipeline
+
+The project includes automated CI/CD with GitHub Actions:
+
+1. **Lint & Test**: Code quality checks and unit tests
+2. **Build**: Docker image building
+3. **Push**: Automatic push to Docker Hub
+4. **Deploy**: Local deployment instructions
+
+### Required GitHub Secrets
+- `DOCKER_USERNAME`: Your Docker Hub username
+- `DOCKER_PASSWORD`: Your Docker Hub access token
+
+## Monitoring
+
+### Prometheus Metrics
+- API request rates
+- Response times
+- Error rates
+- Custom business metrics
+
+### Grafana Dashboards
+- Real-time API performance
+- Model prediction statistics
+- System health monitoring
+
+### MLflow Tracking
+- Experiment parameters
+- Model performance metrics
+- Model versioning
+- Artifact storage
+
+## Troubleshooting
 
 ### Common Issues
 
 1. **Port Already in Use**
    ```bash
-   # Find process using port 8000
-   lsof -i :8000
-   # Kill process
-   kill -9 <PID>
+   lsof -i :8001
+   docker stop $(docker ps -q)
    ```
 
-2. **Model Not Loading**
+2. **Container Won't Start**
    ```bash
-   # Check if model exists
-   ls -la models/
-   # Retrain models
-   python scripts/train_models.py
+   docker logs mlops-all-in-one
+   docker stats mlops-all-in-one
    ```
 
-3. **Docker Build Issues**
+3. **Services Not Responding**
    ```bash
-   # Clean Docker cache
-   docker system prune -a
-   # Rebuild without cache
-   docker build --no-cache -t california-housing-mlops .
+   curl http://localhost:8001/health
+   docker ps -a
    ```
 
-### Logs
+### Debug Commands
 ```bash
-# View API logs
-tail -f logs/api.log
+# Check container status
+docker ps -a
 
-# View container logs
-docker logs california-housing-api -f
+# View logs
+docker logs -f mlops-all-in-one
 
-# Check MLflow logs
-tail -f mlruns/california_housing_experiment/*/meta.yaml
+# Enter container
+docker exec -it mlops-all-in-one bash
+
+# Check supervisor status
+supervisorctl status
 ```
 
-## 📈 Performance
+## Performance
 
-- **API Response Time**: < 100ms average
-- **Model Prediction**: < 50ms average
-- **Concurrent Requests**: Tested up to 100 concurrent users
-- **Memory Usage**: ~500MB for API + model
+### Resource Requirements
+- **Minimum**: 2GB RAM, 2 CPU cores
+- **Recommended**: 4GB RAM, 4 CPU cores
+- **Storage**: 5GB+ for models and data
 
-## 🤝 Contributing
+### Optimization Tips
+- Use volume mounts for persistent data
+- Monitor resource usage with `docker stats`
+- Adjust supervisor restart policies if needed
+- Consider resource limits for production
+
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
 4. Add tests
-5. Submit a pull request
+5. Run the test suite
+6. Submit a pull request
 
-## 📝 License
+## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
-- California Housing dataset from scikit-learn
+- California Housing Dataset
 - MLflow for experiment tracking
 - FastAPI for the web framework
 - Docker for containerization
-
-## 📞 Support
-
-For questions or issues:
-1. Check the troubleshooting section
-2. Review logs and error messages
-3. Open an issue on GitHub
-4. Contact the development team
+- Prometheus and Grafana for monitoring
 
 ---
 
-**Happy MLOps! 🚀**
+**Happy MLOps!**

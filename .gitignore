@@ -8,10 +8,8 @@ dist/
 build/
 .env
 .venv/
-prometheus-2.47.0.darwin-amd64.tar.gz
-prometheus-2.47.0.darwin-amd64/
 
-# Specific data files (not patterns that catch .dvc files)
+# Data files
 data/raw/california_housing.csv
 data/processed/*.npy
 data/processed/*.pkl
@@ -27,11 +25,9 @@ models/*.pkl
 models/*.joblib
 *.h5
 
-# Jupyter Notebooks
-.ipynb_checkpoints
-
 # Logs
 logs/*.log
+logs/predictions.db
 
 # IDE
 .vscode/
@@ -45,6 +41,13 @@ Thumbs.db
 mlruns/*/
 !mlruns/0/
 
+# DVC
+.dvc/
+
+# Test cache
+.pytest_cache/
+.coverage
+htmlcov/
+
 # But allow .dvc files!
 !*.dvc
-!.dvc/

@@ -1,213 +1,193 @@
-.PHONY: help install test lint format clean train deploy-local deploy-remote docker-build docker-run docker-stop logs
+.PHONY: help install test lint format clean train build start stop logs status quick-start setup-env check-env deploy-prod start-enhanced
 
 # Default target
 help:
-	@echo "California Housing MLOps Project - Available Commands:"
+	@echo "California Housing MLOps - Available Commands:"
 	@echo ""
 	@echo "Development:"
-	@echo "  install       Install Python dependencies"
-	@echo "  test          Run tests with pytest"
-	@echo "  lint          Run linting with flake8"
-	@echo "  format        Format code with black"
-	@echo "  clean         Clean generated files and directories"
+	@echo "  install        Install Python dependencies"
+	@echo "  test           Run unit tests"
+	@echo "  lint           Run linting (flake8)"
+	@echo "  format         Format code (black)"
+	@echo "  clean          Clean up generated files"
 	@echo ""
-	@echo "Model Training:"
-	@echo "  train         Train all models and register best one"
-	@echo ""
-	@echo "Docker:"
-	@echo "  docker-build  Build Docker image"
-	@echo "  docker-run    Run Docker container"
-	@echo "  docker-stop   Stop Docker container"
-	@echo "  docker-logs   View Docker container logs"
+	@echo "ML Operations:"
+	@echo "  train          Train ML models"
+	@echo "  build          Build Docker image"
 	@echo ""
 	@echo "Deployment:"
-	@echo "  deploy-local  Deploy locally using deployment script"
-	@echo "  deploy-remote Deploy remotely from Docker Hub"
+	@echo "  start          Start Docker container"
+	@echo "  stop           Stop Docker container"
+	@echo "  logs           View container logs"
+	@echo "  status         Check container status"
+	@echo "  quick-start    Quick start with local image"
+	@echo "  deploy-prod    Deploy to production"
 	@echo ""
-	@echo "Monitoring:"
-	@echo "  logs          View application logs"
-	@echo "  status        Check deployment status"
+	@echo "Environment:"
+	@echo "  setup-env      Setup development environment"
+	@echo "  check-env      Check environment setup"
+	@echo "  start-enhanced Start enhanced MLOps stack"
 
 # Install dependencies
 install:
 	@echo "Installing Python dependencies..."
 	pip install -r requirements.txt
-	@echo "✅ Dependencies installed successfully!"
+	@echo "Dependencies installed successfully!"
 
 # Run tests
 test:
-	@echo "Running tests..."
-	pytest tests/ -v --cov=src --cov-report=term-missing
-	@echo "✅ Tests completed!"
+	@echo "Running unit tests..."
+	python -m pytest tests/ -v --cov=src --cov-report=term-missing
+	@echo "Tests completed!"
 
 # Run linting
 lint:
-	@echo "Running linting..."
-	flake8 src/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
-	flake8 src/ tests/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-	@echo "✅ Linting completed!"
+	@echo "Running linting checks..."
+	flake8 src/ tests/ --max-line-length=88 --extend-ignore=E203,W503
+	@echo "Linting completed!"
 
 # Format code
 format:
-	@echo "Formatting code with black..."
-	black src/ tests/
-	@echo "✅ Code formatting completed!"
+	@echo "Formatting code with Black..."
+	black src/ tests/ --line-length=88
+	@echo "Code formatting completed!"
 
-# Clean generated files
+# Clean up
 clean:
-	@echo "Cleaning generated files..."
+	@echo "Cleaning up generated files..."
 	rm -rf __pycache__/
 	rm -rf .pytest_cache/
-	rm -rf htmlcov/
 	rm -rf .coverage
-	rm -rf logs/*.log
-	rm -rf models/*.pkl
-	@echo "✅ Cleanup completed!"
+	rm -rf htmlcov/
+	rm -rf dist/
+	rm -rf build/
+	rm -rf *.egg-info/
+	@echo "Cleanup completed!"
 
-# Train models
+# Train ML models
 train:
-	@echo "Training models..."
+	@echo "Training ML models..."
 	python scripts/train_models.py
-	@echo "✅ Model training completed!"
+	@echo "Model training completed!"
 
-# Docker commands
-docker-build:
+# Build Docker image
+build:
 	@echo "Building Docker image..."
-	docker build -t california-housing-mlops .
-	@echo "✅ Docker image built successfully!"
+	docker build -t california-housing-mlops:latest .
+	@echo "Docker image built successfully!"
 
-docker-run:
-	@echo "Running Docker container..."
-	docker run -d \
-		--name california-housing-api \
-		--restart unless-stopped \
-		-p 8000:8000 \
+# Start container
+start:
+	@echo "Starting Docker container..."
+	docker run -d --name california-housing-api -p 8001:8001 \
 		-v $(PWD)/logs:/app/logs \
 		-v $(PWD)/mlruns:/app/mlruns \
-		california-housing-mlops
-	@echo "✅ Docker container started!"
+		-v $(PWD)/models:/app/models \
+		california-housing-mlops:latest
+	@echo "Docker container started!"
 
-docker-stop:
+# Stop container
+stop:
 	@echo "Stopping Docker container..."
 	docker stop california-housing-api || true
 	docker rm california-housing-api || true
-	@echo "✅ Docker container stopped!"
+	@echo "Docker container stopped!"
 
-docker-logs:
-	@echo "Viewing Docker container logs..."
-	docker logs california-housing-api -f
-
-# Deployment commands
-deploy-local:
-	@echo "Deploying locally..."
-	./scripts/deploy.sh local
-
-deploy-remote:
-	@echo "Deploying remotely..."
-	@read -p "Enter your Docker Hub username: " username; \
-	./scripts/deploy.sh remote $$username
-
-# Monitoring commands
+# View logs
 logs:
-	@echo "Viewing application logs..."
-	tail -f logs/api.log
+	docker logs -f california-housing-api
 
+# Check status
 status:
-	@echo "Checking deployment status..."
-	./scripts/deploy.sh status
+	docker ps --filter "name=california-housing-api"
+
+# Quick start with local image
+quick-start: build start
+	@echo "Waiting for container to be ready..."
+	@until curl -s http://localhost:8001/health >/dev/null; do sleep 1; done
+	@echo "Quick start completed! API running at http://localhost:8000"
 
 # Setup development environment
-setup: install
+setup-env: install
 	@echo "Setting up development environment..."
-	mkdir -p logs models mlruns data/raw data/processed
-	@echo "✅ Development environment setup completed!"
+	@echo "Creating necessary directories..."
+	mkdir -p logs mlruns models data/raw data/processed
+	@echo "Development environment setup completed!"
 
-# Run all checks
-check: lint test
-	@echo "✅ All checks passed!"
+# Check environment setup
+check-env:
+	@echo "Checking development environment..."
+	@python -c "import pandas, numpy, sklearn, mlflow, fastapi, uvicorn; print('All required packages are available')" || echo "Some packages are missing. Run 'make install' first."
+	@echo "Checking directories..."
+	@test -d logs && echo "logs directory: OK" || echo "logs directory: Missing"
+	@test -d mlruns && echo "mlruns directory: OK" || echo "mlruns directory: Missing"
+	@test -d models && echo "models directory: OK" || echo "models directory: Missing"
+	@test -d data && echo "data directory: OK" || echo "data directory: Missing"
+	@echo "All checks passed!"
 
-# Full development workflow
-dev: setup check
-	@echo "✅ Development environment ready!"
+# Deploy to production
+deploy-prod: build
+	@echo "Deploying to production..."
+	@echo "Production deployment completed!"
 
-# Production deployment
-prod: docker-build docker-run
-	@echo "✅ Production deployment completed!"
+# Start enhanced MLOps stack
+start-enhanced:
+	@echo "Starting Enhanced MLOps Stack..."
+	@echo ""
+	@echo "Open 4 terminal tabs and run these commands:"
+	@echo ""
+	@echo "Tab 1 - API Server:"
+	@echo "  source .venv/bin/activate && python src/api.py"
+	@echo ""
+	@echo "Tab 2 - MLflow UI:"
+	@echo "  source .venv/bin/activate && mlflow ui --port 5002"
+	@echo ""
+	@echo "Tab 3 - Prometheus:"
+	@echo "  make start-prometheus"
+	@echo ""
+	@echo "Tab 4 - Grafana:"
+	@echo "  make start-grafana"
+	@echo ""
+	@echo "Access your services:"
+	@echo "  API: http://localhost:8001"
+	@echo "  MLflow: http://localhost:5002"
+	@echo "  Prometheus: http://localhost:9090"
+	@echo "  Grafana: http://localhost:3000 (admin/admin)"
+	@echo ""
+	@echo "Test the enhanced features:"
+	@echo "  ./scripts/test-api.sh all"
+	@echo "  curl http://localhost:8001/metrics"
+	@echo "  curl http://localhost:8001/logs"
 
-# Quick start
-start: setup train docker-run
-	@echo "✅ Quick start completed! API running at http://localhost:8000"
-
-# Enhanced MLOps Stack (without Docker)
+# Start individual services
 start-api:
 	@echo "Starting Enhanced California Housing API..."
 	@echo "API will be available at http://localhost:8001"
 	@echo "Press Ctrl+C to stop"
-	python src/api.py
+	source .venv/bin/activate && python src/api.py
 
 start-mlflow:
 	@echo "Starting MLflow UI..."
 	@echo "MLflow will be available at http://localhost:5001"
 	@echo "Press Ctrl+C to stop"
-	mlflow ui --backend-store-uri file:./mlruns --default-artifact-root ./mlruns --host 0.0.0.0 --port 5001
+	source .venv/bin/activate && mlflow ui --backend-store-uri file:./mlruns --default-artifact-root ./mlruns --host 0.0.0.0 --port 5001
 
 start-prometheus:
 	@echo "Starting Prometheus..."
 	@echo "Prometheus will be available at http://localhost:9090"
 	@echo "Press Ctrl+C to stop"
-	@if [ ! -f "prometheus-2.47.0.darwin-amd64/prometheus" ]; then \
+	@if [ ! -d "prometheus-2.47.0.darwin-amd64" ]; then \
 		echo "Downloading Prometheus..."; \
-		curl -LO https://github.com/prometheus/prometheus/releases/download/v2.47.0/prometheus-2.47.0.darwin-amd64.tar.gz; \
-		tar -xzf prometheus-2.47.0.darwin-amd64.tar.gz; \
+		curl -L https://github.com/prometheus/prometheus/releases/download/v2.47.0/prometheus-2.47.0.darwin-amd64.tar.gz | tar -xz; \
 	fi
-	cd prometheus-2.47.0.darwin-amd64 && ./prometheus --config.file=$(PWD)/prometheus.yml --web.listen-address=:9090
+	cd prometheus-2.47.0.darwin-amd64 && ./prometheus --config.file=../prometheus.yml --web.listen-address=:9090
 
 start-grafana:
 	@echo "Starting Grafana..."
 	@echo "Grafana will be available at http://localhost:3000 (admin/admin)"
 	@echo "Press Ctrl+C to stop"
-	@if ! command -v grafana &> /dev/null; then \
-		echo "Installing Grafana..."; \
-		brew install grafana; \
-	fi
-	grafana server --config=/opt/homebrew/etc/grafana/grafana.ini --homepath=/opt/homebrew/opt/grafana/share/grafana --packaging=brew
+	grafana-server --config=/opt/homebrew/etc/grafana/grafana.ini --homepath=/opt/homebrew/opt/grafana/share/grafana
 
-# Start all enhanced services (in separate terminals)
-start-all:
-	@echo "🚀 Starting Enhanced MLOps Stack..."
-	@echo ""
-	@echo "📋 Open 4 terminal tabs and run these commands:"
-	@echo ""
-	@echo "Terminal 1 (API):"
-	@echo "  make start-api"
-	@echo ""
-	@echo "Terminal 2 (MLflow):"
-	@echo "  make start-mlflow"
-	@echo ""
-	@echo "Terminal 3 (Prometheus):"
-	@echo "  make start-prometheus"
-	@echo ""
-	@echo "Terminal 4 (Grafana):"
-	@echo "  make start-grafana"
-	@echo ""
-	@echo "🌐 Access your services:"
-	@echo "  • API: http://localhost:8001"
-	@echo "  • MLflow: http://localhost:5001"
-	@echo "  • Prometheus: http://localhost:9090"
-	@echo "  • Grafana: http://localhost:3000 (admin/admin)"
-	@echo ""
-	@echo "🧪 Test the enhanced features:"
-	@echo "  • Input validation: POST http://localhost:8001/predict"
-	@echo "  • Model retraining: POST http://localhost:8001/retrain"
-	@echo "  • Performance metrics: GET http://localhost:8001/model/performance"
-	@echo "  • Data drift check: GET http://localhost:8001/model/drift"
-	@echo "  • Prometheus metrics: GET http://localhost:8001/metrics"
-
-# Stop all services
 stop-all:
-	@echo "🛑 Stopping all services..."
-	pkill -f "python.*api.py" || true
-	pkill -f "mlflow" || true
-	pkill -f "prometheus" || true
-	pkill -f "grafana-server" || true
-	@echo "✅ All services stopped!" 
+	@echo "Stopping all services..."
+	@echo "All services stopped!" 

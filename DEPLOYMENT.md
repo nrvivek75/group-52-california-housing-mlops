@@ -1,297 +1,309 @@
-# 🚀 Deployment Guide - California Housing MLOps
+# All-in-One MLOps Docker Deployment Guide
 
-This guide explains how to deploy and test the California Housing MLOps project after pushing to GitHub.
+## What This Achieves
 
-## 📋 Prerequisites
+This guide shows you how to deploy **ALL 4 MLOps services** using just **ONE Docker image**:
 
-- Docker installed and running
-- Git configured
-- Access to Docker Hub (optional, for pulling pre-built images)
+- **FastAPI API** (Port 8001)
+- **MLflow UI** (Port 5002) 
+- **Prometheus** (Port 9090)
+- **Grafana** (Port 3000)
 
-## 🔄 Workflow Overview
+## Architecture Overview
 
-1. **Push to GitHub** → Triggers CI/CD pipeline
-2. **CI/CD Builds** → Creates Docker image and pushes to Docker Hub
-3. **Local Deployment** → Pull image and run container locally
-4. **Testing** → Verify all endpoints and functionality
-
-## 🚀 Step-by-Step Deployment
-
-### Step 1: Push to GitHub
-
-```bash
-# Add all changes
-git add .
-
-# Commit changes
-git commit -m "Ready for CI/CD deployment"
-
-# Push to GitHub (this triggers the CI/CD pipeline)
-git push origin main
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Single Docker Container                  │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌──────┐ │
+│  │   FastAPI   │ │   MLflow    │ │ Prometheus  │ │Grafana│ │
+│  │   (8001)    │ │   (5002)    │ │   (9090)    │ │(3000) │ │
+│  └─────────────┘ └─────────────┘ └─────────────┘ └──────┘ │
+│                                                             │
+│  Supervisor manages all 4 services                         │
+│  All services share the same filesystem                     │
+│  Single health check endpoint                               │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Step 2: Monitor CI/CD Pipeline
+## Quick Start (3 Steps)
 
-1. Go to your GitHub repository
-2. Click on "Actions" tab
-3. Monitor the CI/CD pipeline progress:
-   - ✅ Lint and Test
-   - ✅ Build and Push Docker Image
-   - ✅ Comment on PR (if applicable)
-
-### Step 3: Local Deployment
-
-Once the CI/CD pipeline completes successfully, deploy locally:
-
-#### Option A: Using the Deployment Script (Recommended)
-
+### Step 1: Build the All-in-One Image
 ```bash
-# Make script executable (if not already done)
-chmod +x scripts/deploy-local.sh
+# Option A: Use the script (recommended)
+./scripts/start-all-in-one.sh build
 
-# Deploy using Docker Hub image (replace 'yourusername' with your Docker Hub username)
-DOCKER_USERNAME=yourusername ./scripts/deploy-local.sh start
+# Option B: Use docker-compose
+docker-compose -f docker-compose.all-in-one.yml build
 
-# Or deploy without Docker Hub (will use local image if available)
-./scripts/deploy-local.sh start
+# Option C: Manual Docker build
+docker build -f Dockerfile.all-in-one -t mlops-all-in-one:latest .
 ```
 
-#### Option B: Manual Docker Commands
-
+### Step 2: Start All Services
 ```bash
-# Pull the latest image from Docker Hub
-docker pull yourusername/california-housing-mlops:latest
+# Option A: Use the script (recommended)
+./scripts/start-all-in-one.sh start
 
-# Run the container
+# Option B: Use docker-compose
+docker-compose -f docker-compose.all-in-one.yml up -d
+
+# Option C: Manual Docker run
 docker run -d \
-  --name california-housing-api \
-  --restart unless-stopped \
-  -p 8001:8001 \
+  --name mlops-all-in-one \
+  -p 8001:8001 -p 5002:5002 -p 9090:9090 -p 3000:3000 \
   -v $(pwd)/logs:/app/logs \
   -v $(pwd)/mlruns:/app/mlruns \
   -v $(pwd)/models:/app/models \
   -v $(pwd)/data:/app/data \
-  yourusername/california-housing-mlops:latest
+  mlops-all-in-one:latest
 ```
 
-#### Option C: Using Docker Compose
-
-```bash
-# Start all services (API, MLflow, Prometheus, Grafana)
-docker-compose up -d
-
-# View logs
-docker-compose logs -f california-housing-api
+### Step 3: Access Your Services
+```
+FastAPI API:     http://localhost:8001
+MLflow UI:       http://localhost:5002
+Prometheus:      http://localhost:9090
+Grafana:         http://localhost:3000 (admin/admin)
 ```
 
-### Step 4: Verify Deployment
+## Prerequisites
+
+- Docker installed and running
+- At least 4GB RAM available
+- Ports 8001, 5002, 9090, 3000 available
+
+## Detailed Setup
+
+### 1. Using the Script (Recommended)
+
+The `scripts/start-all-in-one.sh` script handles everything automatically:
 
 ```bash
-# Check container status
-./scripts/deploy-local.sh status
-
-# Check health endpoint
-curl http://localhost:8001/health
-
-# View container logs
-./scripts/deploy-local.sh logs
-```
-
-## 🌐 Access Points
-
-After successful deployment, you can access:
-
-| Service | URL | Description |
-|---------|-----|-------------|
-| **API** | http://localhost:8001 | Main FastAPI application |
-| **Health** | http://localhost:8001/health | Health check endpoint |
-| **Metrics** | http://localhost:8001/metrics | API metrics and statistics |
-| **Logs** | http://localhost:8001/logs | Recent prediction logs |
-| **API Docs** | http://localhost:8001/docs | Interactive API documentation |
-| **MLflow UI** | http://localhost:5002 | Experiment tracking (if using docker-compose) |
-| **Prometheus** | http://localhost:9090 | Metrics collection (if using docker-compose) |
-| **Grafana** | http://localhost:3000 | Dashboards (if using docker-compose) |
-
-## 🧪 Testing the API
-
-### Health Check
-```bash
-curl http://localhost:8001/health
-```
-
-### Make a Prediction
-```bash
-curl -X POST "http://localhost:8001/predict" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "longitude": -122.23,
-       "latitude": 37.88,
-       "housing_median_age": 41.0,
-       "total_rooms": 880.0,
-       "total_bedrooms": 129.0,
-       "population": 322.0,
-       "households": 126.0,
-       "median_income": 8.3252
-     }'
-```
-
-### Get Metrics
-```bash
-curl http://localhost:8001/metrics
-```
-
-### Get Logs
-```bash
-curl http://localhost:8001/logs?limit=5
-```
-
-## 🛠️ Management Commands
-
-```bash
-# Start container
-./scripts/deploy-local.sh start
-
-# Stop container
-./scripts/deploy-local.sh stop
-
-# Restart container
-./scripts/deploy-local.sh restart
-
-# Remove container
-./scripts/deploy-local.sh remove
+# Start everything
+./scripts/start-all-in-one.sh start
 
 # Check status
-./scripts/deploy-local.sh status
+./scripts/start-all-in-one.sh status
 
 # View logs
-./scripts/deploy-local.sh logs
+./scripts/start-all-in-one.sh logs
 
-# Show help
-./scripts/deploy-local.sh help
+# Stop services
+./scripts/start-all-in-one.sh stop
+
+# Remove container
+./scripts/start-all-in-one.sh remove
+
+# Get help
+./scripts/start-all-in-one.sh help
 ```
 
-## 🔍 Troubleshooting
+### 2. Using Docker Compose
 
-### Container Won't Start
 ```bash
-# Check Docker logs
-docker logs california-housing-api
+# Build and start
+docker-compose -f docker-compose.all-in-one.yml up -d
 
-# Check if port is already in use
+# View logs
+docker-compose -f docker-compose.all-in-one.yml logs -f
+
+# Stop
+docker-compose -f docker-compose.all-in-one.yml down
+```
+
+### 3. Manual Docker Commands
+
+```bash
+# Build image
+docker build -f Dockerfile.all-in-one -t mlops-all-in-one:latest .
+
+# Run container
+docker run -d \
+  --name mlops-all-in-one \
+  -p 8001:8001 -p 5002:5002 -p 9090:9090 -p 3000:3000 \
+  -v $(pwd)/logs:/app/logs \
+  -v $(pwd)/mlruns:/app/mlruns \
+  -v $(pwd)/models:/app/models \
+  -v $(pwd)/data:/app/data \
+  mlops-all-in-one:latest
+
+# Check status
+docker ps
+
+# View logs
+docker logs -f mlops-all-in-one
+
+# Stop
+docker stop mlops-all-in-one
+
+# Remove
+docker rm mlops-all-in-one
+```
+
+## What's Inside the Image
+
+### Base Image
+- Python 3.11 slim
+- System tools (curl, wget, supervisor, sqlite3)
+
+### Services
+1. **FastAPI Application** (`src/api.py`)
+2. **MLflow UI** (Python package)
+3. **Prometheus** (Downloaded binary)
+4. **Grafana** (Downloaded binary)
+
+### Process Management
+- **Supervisor** manages all 4 services
+- Automatic restart on failure
+- Centralized logging
+- Health monitoring
+
+### Configuration
+- Prometheus config for metrics scraping
+- Grafana provisioning for dashboards
+- MLflow backend configuration
+- Volume mounts for persistence
+
+## Service Details
+
+### FastAPI API (Port 8001)
+- Housing price prediction endpoint
+- Health checks
+- Metrics endpoint for Prometheus
+- Logging and monitoring
+- Model retraining triggers
+
+### MLflow UI (Port 5002)
+- Experiment tracking
+- Model registry
+- Artifact storage
+- Model versioning
+
+### Prometheus (Port 9090)
+- Metrics collection
+- API performance monitoring
+- MLflow metrics
+- Self-monitoring
+
+### Grafana (Port 3000)
+- Pre-configured dashboards
+- Prometheus data source
+- Real-time monitoring
+- Performance visualization
+
+## Workflow Integration
+
+### CI/CD Pipeline
+1. Build the all-in-one image
+2. Push to Docker Hub
+3. Deploy anywhere with one command
+
+### Local Development
+1. Build once
+2. Start with one command
+3. All services available immediately
+
+### Production Deployment
+1. Single image deployment
+2. Unified health monitoring
+3. Simplified orchestration
+
+## Troubleshooting
+
+### Common Issues
+
+#### Port Already in Use
+```bash
+# Check what's using the ports
 lsof -i :8001
+lsof -i :5002
+lsof -i :9090
+lsof -i :3000
 
-# Verify Docker is running
-docker info
+# Stop conflicting services
+docker stop $(docker ps -q)
 ```
 
-### Image Pull Fails
+#### Container Won't Start
 ```bash
-# Check if you're logged into Docker Hub
-docker login
+# Check logs
+docker logs mlops-all-in-one
 
-# Verify image exists
-docker search yourusername/california-housing-mlops
+# Check resource usage
+docker stats mlops-all-in-one
 
-# Build locally if needed
-docker build -t california-housing-mlops:latest .
+# Restart container
+docker restart mlops-all-in-one
 ```
 
-### Health Check Fails
+#### Services Not Responding
 ```bash
 # Check container status
 docker ps -a
 
-# Check container logs
-docker logs california-housing-api
-
-# Verify required files exist
-ls -la logs/ models/ mlruns/
+# Check service health
+curl http://localhost:8001/health
+curl http://localhost:5002
+curl http://localhost:9090
+curl http://localhost:3000
 ```
 
-### Port Conflicts
+### Debug Commands
 ```bash
-# Check what's using port 8001
-lsof -i :8001
+# Enter container
+docker exec -it mlops-all-in-one bash
 
-# Kill process if needed
-kill -9 <PID>
+# Check supervisor status
+supervisorctl status
 
-# Or use a different port
-docker run -p 8002:8001 ... # Maps host port 8002 to container port 8001
+# Check individual service logs
+supervisorctl tail api
+supervisorctl tail mlflow
+supervisorctl tail prometheus
+supervisorctl tail grafana
+
+# Restart specific service
+supervisorctl restart api
 ```
 
-## 📊 Monitoring
+## Performance Considerations
 
-### View Real-time Logs
-```bash
-# Follow API logs
-tail -f logs/api.log
+### Resource Requirements
+- **Minimum**: 2GB RAM, 2 CPU cores
+- **Recommended**: 4GB RAM, 4 CPU cores
+- **Storage**: 5GB+ for models and data
 
-# Follow container logs
-docker logs -f california-housing-api
-```
+### Optimization Tips
+- Use volume mounts for persistent data
+- Monitor resource usage with `docker stats`
+- Adjust supervisor restart policies if needed
+- Consider resource limits for production
 
-### Check Resource Usage
-```bash
-# Container resource usage
-docker stats california-housing-api
+## Security Notes
 
-# Disk usage
-du -sh logs/ mlruns/ models/
-```
+- Grafana admin password: `admin`
+- All services bind to `0.0.0.0` (accessible from any IP)
+- Consider firewall rules for production
+- Volume mounts preserve data between restarts
 
-### Performance Testing
-```bash
-# Simple load test
-for i in {1..10}; do
-  curl -X POST "http://localhost:8001/predict" \
-       -H "Content-Type: application/json" \
-       -d '{"longitude": -122.23, "latitude": 37.88, "housing_median_age": 41.0, "total_rooms": 880.0, "total_bedrooms": 129.0, "population": 322.0, "households": 126.0, "median_income": 8.3252}' &
-done
-wait
-```
+## Benefits of This Approach
 
-## 🔄 Updating the Deployment
+1. **Single Command Deployment**: One image, all services
+2. **Simplified Management**: Single container to monitor
+3. **Consistent Environment**: All services use same base image
+4. **Easy Scaling**: Copy image to any host
+5. **Unified Monitoring**: Single health check endpoint
+6. **Persistent Data**: Volume mounts preserve your work
+7. **Development Friendly**: Quick local setup and testing
 
-When you push new changes to GitHub:
+## Next Steps
 
-1. **Wait for CI/CD** to complete
-2. **Pull the new image**:
-   ```bash
-   docker pull yourusername/california-housing-mlops:latest
-   ```
-3. **Restart the container**:
-   ```bash
-   ./scripts/deploy-local.sh restart
-   ```
-
-## 📝 Environment Variables
-
-You can customize the deployment by setting environment variables:
-
-```bash
-# Use specific Docker Hub username
-export DOCKER_USERNAME=yourusername
-
-# Use specific port
-export PORT=8002
-
-# Deploy with custom settings
-./scripts/deploy-local.sh start
-```
-
-## 🎯 Next Steps
-
-After successful deployment:
-
-1. **Test all API endpoints** to ensure functionality
-2. **Monitor logs** for any errors or issues
-3. **Check metrics** to understand API performance
-4. **Explore MLflow UI** to view experiment tracking
-5. **Customize configurations** as needed for your environment
+1. **Build and test** the all-in-one image locally
+2. **Push to Docker Hub** for distribution
+3. **Deploy on any host** with one command
+4. **Customize dashboards** and monitoring
+5. **Scale horizontally** by running multiple instances
 
 ---
 
-**Happy Deploying! 🚀**
-
-For issues or questions, check the troubleshooting section or review the main README.md file. 
+**Goal Achieved**: You now have a **single Docker image** that contains **all 4 MLOps services** and can be deployed with **one command**! 
